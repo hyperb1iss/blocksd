@@ -80,7 +80,6 @@ class DeviceGroup:
         self._incoming_connections: list[_IncomingConnection] = []
         self._devices: dict[int, DeviceInfo] = {}  # uid → DeviceInfo
         self._pings: dict[int, PingEntry] = {}  # uid → PingEntry
-        self._api_attempt_times: dict[int, float] = {}  # uid → last attempt time
 
         # Timing
         self._last_topology_request = 0.0
@@ -204,25 +203,17 @@ class DeviceGroup:
     # ── API mode management ───────────────────────────────────────────────
 
     def _start_api_on_unconnected(self) -> None:
-        """Send beginAPIMode to devices not yet API-connected.
+        """Send endAPIMode + beginAPIMode to devices not yet API-connected.
 
-        Only sends endAPIMode on the first attempt (to clear stale state).
-        Subsequent reconnections skip endAPIMode to avoid LED flickering.
-        Throttled to once per 2 seconds per device.
+        Matches C++ roli_ConnectedDeviceGroup behavior: sends both commands
+        every tick to all unconnected devices. The master relays to DNA devices.
         """
-        now = time.monotonic()
         for dev in self._devices.values():
             if dev.uid in self._pings:
                 continue
-            last_attempt = self._api_attempt_times.get(dev.uid, 0.0)
-            if now - last_attempt < 2.0:
-                continue
-            first_attempt = dev.uid not in self._api_attempt_times
             log.debug("Activating API mode on %s (idx=%d)", dev.serial, dev.topology_index)
-            if first_attempt:
-                self.conn.send(build_end_api_mode(dev.topology_index))
+            self.conn.send(build_end_api_mode(dev.topology_index))
             self.conn.send(build_begin_api_mode(dev.topology_index))
-            self._api_attempt_times[dev.uid] = now
 
     def _send_pings(self, now: float) -> None:
         """Send periodic pings to keep devices alive.
@@ -287,7 +278,6 @@ class DeviceGroup:
         """Remove a device from tracking."""
         dev = self._devices.pop(uid, None)
         self._pings.pop(uid, None)
-        self._api_attempt_times.pop(uid, None)
         if dev:
             log.info("Device removed: %s", dev.serial)
             for cb in self.on_device_removed:
@@ -347,7 +337,7 @@ class DeviceGroup:
             self._schedule_topology_request()
             return
 
-        first_topology = self.state == GroupState.REQUESTING_TOPOLOGY
+        first_topology = self.state != GroupState.RUNNING
         level = logging.INFO if first_topology else logging.DEBUG
         log.log(
             level,
