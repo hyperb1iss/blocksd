@@ -1,5 +1,6 @@
-"""7-bit packing/unpacking — ported from Packed7BitArrayBuilder/Reader in roli_BitPackingUtilities.h.
+"""7-bit packing/unpacking for ROLI BLOCKS protocol.
 
+Ported from Packed7BitArrayBuilder/Reader in roli_BitPackingUtilities.h.
 All ROLI protocol payloads use 7-bit-safe bytes (bit 7 always 0, MIDI SysEx constraint).
 Bits are packed LSB-first across byte boundaries.
 """
@@ -45,7 +46,8 @@ class Packed7BitWriter:
 
     def get_state(self) -> tuple[int, int, int]:
         """Save state for rollback."""
-        current_byte = self._data[self._bytes_written] if self._bytes_written < len(self._data) else 0
+        bw = self._bytes_written
+        current_byte = self._data[bw] if bw < len(self._data) else 0
         return (self._bytes_written, self._bits_in_current_byte, current_byte)
 
     def restore(self, state: tuple[int, int, int]) -> None:

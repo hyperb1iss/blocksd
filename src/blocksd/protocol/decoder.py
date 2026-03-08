@@ -8,11 +8,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from blocksd.protocol.checksum import calculate_checksum
-from blocksd.protocol.constants import (
-    ROLI_SYSEX_HEADER,
-    BitSize,
-    MessageFromDevice,
-)
+from blocksd.protocol.constants import ROLI_SYSEX_HEADER, BitSize
 from blocksd.protocol.packing import Packed7BitReader
 
 

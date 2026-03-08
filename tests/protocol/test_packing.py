@@ -40,8 +40,8 @@ class TestPacked7BitRoundTrip:
     def test_multi_field_roundtrip(self, a: int, b: int, c: int) -> None:
         """Multiple fields packed sequentially — simulates a real message."""
         writer = Packed7BitWriter()
-        writer.write_bits(a, 7)   # MessageType
-        writer.write_bits(b, 9)   # DeviceCommand
+        writer.write_bits(a, 7)  # MessageType
+        writer.write_bits(b, 9)  # DeviceCommand
         writer.write_bits(c, 32)  # Timestamp
         reader = Packed7BitReader(writer.get_data())
         assert reader.read_bits(7) == a

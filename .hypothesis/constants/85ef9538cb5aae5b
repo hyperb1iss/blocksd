@@ -1,0 +1,4 @@
+# file: /home/bliss/dev/blocksd/src/blocksd/protocol/constants.py
+# hypothesis_version: 6.151.9
+
+[b'48:B6:20:', 1.5, 119, 120, 240, 247, 255, 256, 300, 400, 512, 528, 800, 1666, 1792, 2304, 3000, 3584, 3840, 4096, 5000, 7200, 10996]

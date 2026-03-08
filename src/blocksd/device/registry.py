@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from blocksd.device.models import BlockType
 
-
 SERIAL_PREFIX_MAP: dict[str, BlockType] = {
     "LPB": BlockType.LIGHTPAD,
     "LPM": BlockType.LIGHTPAD_M,

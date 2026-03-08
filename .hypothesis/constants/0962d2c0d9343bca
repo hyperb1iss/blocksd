@@ -1,0 +1,4 @@
+# file: /home/bliss/dev/blocksd/src/blocksd/protocol/serial.py
+# hypothesis_version: 6.151.9
+
+['DCB', 'LIC', 'LKB', 'LOC', 'LPB', 'LPM', 'LUMI Keys Block', 'Lightpad Block', 'Lightpad Block M', 'Live Block', 'Loop Block', 'SBB', 'Seaboard Block', 'TCB', 'Touch Block', 'ascii']

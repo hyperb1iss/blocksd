@@ -64,5 +64,5 @@ known-first-party = ["blocksd"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 
-[tool.ty]
+[tool.ty.environment]
 python-version = "3.13"
