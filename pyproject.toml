@@ -66,3 +66,11 @@ asyncio_mode = "auto"
 
 [tool.ty.environment]
 python-version = "3.13"
+
+# python-rtmidi is a C extension without type stubs
+[[tool.ty.overrides]]
+include = ["src/blocksd/device/connection.py", "src/blocksd/topology/detector.py"]
+
+[tool.ty.overrides.rules]
+unresolved-import = "ignore"
+unresolved-attribute = "ignore"
