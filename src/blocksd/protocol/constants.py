@@ -1,0 +1,157 @@
+"""Protocol constants ported from roli_BlocksProtocolDefinitions.h."""
+
+from enum import IntEnum
+
+# ── SysEx Headers ──────────────────────────────────────────────────────────────
+
+ROLI_SYSEX_HEADER = bytes([0xF0, 0x00, 0x21, 0x10, 0x77])
+SERIAL_DUMP_REQUEST = bytes([0xF0, 0x00, 0x21, 0x10, 0x78, 0x3F, 0xF7])
+SERIAL_DUMP_RESPONSE_HEADER = bytes([0xF0, 0x00, 0x21, 0x10, 0x78])
+RESET_MASTER = bytes([0xF0, 0x00, 0x21, 0x10, 0x49, 0xF7])
+MAC_PREFIX = b"48:B6:20:"
+
+# ── Protocol Constants ─────────────────────────────────────────────────────────
+
+PROTOCOL_VERSION = 1
+TOPOLOGY_INDEX_BROADCAST = 63
+API_MODE_PING_TIMEOUT_MS = 5000
+MASTER_PING_INTERVAL_MS = 400
+DNA_PING_INTERVAL_MS = 1666
+DEVICE_SCAN_INTERVAL_S = 1.5
+SERIAL_REQUEST_RETRY_MS = 300
+
+MAX_BLOCKS_IN_TOPOLOGY_PACKET = 6
+MAX_CONNECTIONS_IN_TOPOLOGY_PACKET = 24
+NUM_PROGRAM_MESSAGE_INTS = 3
+NUM_USER_CONFIGS = 32
+MAX_CONFIG_ID = 255
+
+PAD_BLOCK_PROGRAM_HEAP_SIZE = 7200
+PAD_BLOCK_STACK_SIZE = 800
+CONTROL_BLOCK_PROGRAM_HEAP_SIZE = 3000
+CONTROL_BLOCK_STACK_SIZE = 800
+
+# ── USB Vendor/Product IDs ─────────────────────────────────────────────────────
+
+ROLI_USB_VID = 0x2AF4
+
+
+class RoliProductId(IntEnum):
+    SEABOARD = 0x0100
+    SEABOARD_RISE_25 = 0x0200
+    SEABOARD_RISE_49 = 0x0210
+    SEABOARD_BLOCK = 0x0700
+    LIGHTPAD_BLOCK = 0x0900
+    LUMI_KEYS = 0x0E00
+    ROLI_PIANO = 0x0F00
+    AIRWAVE_PEDAL = 0x1000
+
+
+# ── Message Types ──────────────────────────────────────────────────────────────
+
+
+class MessageFromDevice(IntEnum):
+    DEVICE_TOPOLOGY = 0x01
+    PACKET_ACK = 0x02
+    FIRMWARE_UPDATE_ACK = 0x03
+    DEVICE_TOPOLOGY_EXTEND = 0x04
+    DEVICE_TOPOLOGY_END = 0x05
+    DEVICE_VERSION = 0x06
+    DEVICE_NAME = 0x07
+    TOUCH_START = 0x10
+    TOUCH_MOVE = 0x11
+    TOUCH_END = 0x12
+    TOUCH_START_WITH_VELOCITY = 0x13
+    TOUCH_MOVE_WITH_VELOCITY = 0x14
+    TOUCH_END_WITH_VELOCITY = 0x15
+    CONFIG_MESSAGE = 0x18
+    CONTROL_BUTTON_DOWN = 0x20
+    CONTROL_BUTTON_UP = 0x21
+    PROGRAM_EVENT_MESSAGE = 0x28
+    LOG_MESSAGE = 0x30
+
+
+class MessageFromHost(IntEnum):
+    DEVICE_COMMAND = 0x01
+    SHARED_DATA_CHANGE = 0x02
+    PROGRAM_EVENT = 0x03
+    FIRMWARE_UPDATE_PACKET = 0x04
+    CONFIG_MESSAGE = 0x10
+    FACTORY_RESET = 0x11
+    BLOCK_RESET = 0x12
+    SET_NAME = 0x20
+
+
+class DeviceCommand(IntEnum):
+    BEGIN_API_MODE = 0x00
+    REQUEST_TOPOLOGY = 0x01
+    END_API_MODE = 0x02
+    PING = 0x03
+    DEBUG_MODE = 0x04
+    SAVE_PROGRAM_AS_DEFAULT = 0x05
+
+
+class ConfigCommand(IntEnum):
+    SET_CONFIG = 0x00
+    REQUEST_CONFIG = 0x01
+    REQUEST_FACTORY_SYNC = 0x02
+    REQUEST_USER_SYNC = 0x03
+    UPDATE_CONFIG = 0x04
+    UPDATE_USER_CONFIG = 0x05
+    SET_CONFIG_STATE = 0x06
+    FACTORY_SYNC_END = 0x07
+    CLUSTER_CONFIG_SYNC = 0x08
+    FACTORY_SYNC_RESET = 0x09
+
+
+class DataChangeCommand(IntEnum):
+    END_OF_PACKET = 0
+    END_OF_CHANGES = 1
+    SKIP_BYTES_FEW = 2
+    SKIP_BYTES_MANY = 3
+    SET_SEQUENCE_OF_BYTES = 4
+    SET_FEW_BYTES_WITH_VALUE = 5
+    SET_FEW_BYTES_WITH_LAST_VALUE = 6
+    SET_MANY_BYTES_WITH_VALUE = 7
+
+
+# ── Bit Sizes ──────────────────────────────────────────────────────────────────
+
+
+class BitSize:
+    """Bit widths for protocol fields."""
+
+    MESSAGE_TYPE = 7
+    PROTOCOL_VERSION = 8
+    PACKET_TIMESTAMP = 32
+    TIMESTAMP_OFFSET = 5
+    TOPOLOGY_INDEX = 7
+    DEVICE_COUNT = 7
+    CONNECTION_COUNT = 8
+    BATTERY_LEVEL = 5
+    BATTERY_CHARGING = 1
+    CONNECTOR_PORT = 5
+    TOUCH_INDEX = 5
+    TOUCH_X = 12
+    TOUCH_Y = 12
+    TOUCH_Z = 8
+    TOUCH_VX = 8
+    TOUCH_VY = 8
+    TOUCH_VZ = 8
+    DEVICE_COMMAND = 9
+    CONFIG_COMMAND = 4
+    CONFIG_ITEM_INDEX = 8
+    CONFIG_ITEM_VALUE = 32
+    CONTROL_BUTTON_ID = 12
+    PACKET_COUNTER = 10
+    PACKET_INDEX = 16
+    DATA_CHANGE_COMMAND = 3
+    BYTE_COUNT_FEW = 4
+    BYTE_COUNT_MANY = 8
+    BYTE_VALUE = 8
+    BYTE_SEQUENCE_CONTINUES = 1
+    FIRMWARE_UPDATE_ACK_CODE = 7
+    FIRMWARE_UPDATE_ACK_DETAIL = 32
+    FIRMWARE_UPDATE_PACKET_SIZE = 7
+    SERIAL_CHAR = 7
+    SERIAL_LENGTH = 16

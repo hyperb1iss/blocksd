@@ -1,0 +1,28 @@
+[Unit]
+Description=ROLI Blocks Device Manager
+Documentation=https://github.com/hyperb1iss/blocksd
+After=sound.target
+Wants=sound.target
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/blocksd run --daemon
+Restart=on-failure
+RestartSec=5
+WatchdogSec=30
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/run/blocksd
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+
+# Needs access to ALSA/MIDI
+SupplementaryGroups=audio
+DeviceAllow=char-usb_device rwm
+
+[Install]
+WantedBy=multi-user.target

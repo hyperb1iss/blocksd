@@ -1,0 +1,112 @@
+	/*
+	<metadata description="Set the Control Block to the default behaviour" target="All" tags="Default;MIDI;Controller;" insertModes="false">
+
+
+	</metadata>
+	*/
+
+
+	//==============================================================================
+	int connectedBlock;
+
+
+	void repaint()
+	{
+	    clearDisplay();
+	    repaintControl();
+	    connectToBlock();
+	}
+
+
+	void connectToBlock()
+	{
+	    for (int i = 0; i < 6; ++i)
+	    {
+	        int idOnPort = getBlockIDOnPort(i);
+
+
+	        if (getBlockTypeForID(idOnPort) == 1 || getBlockTypeForID(idOnPort) == 6)
+	        {
+	            connectedBlock = idOnPort;
+	            linkBlockIDtoController (connectedBlock);
+	            return;
+	        }
+	    }
+
+
+	    connectedBlock = 0;
+	    linkBlockIDtoController (connectedBlock);
+	}
+
+
+	void liveBlockInitialise()
+	{
+	    initControl (0, 4, 0, 4, 1, 5, 20, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (1, 5, 1, 100, 0, 127, 7, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (2, 5, 0, 0, 0, 18, 22, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (3, 5, 0, 0, 0, 14, 24, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (4, 2, 1, 0, 0, 127, 106, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (5, 0, 1, 0, 0, 127, 64, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (6, 5, 0, 0, -7, 7, 4, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (7, 2, 1, 0, 0, 127, 117, 0xFFFF00FF, 0xFFFFFFFF);
+	    initControl (8, 2, 1, 0, 0, 127, 118, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (9, 2, 1, 0, 0, 127, 119, 0xFF00FFFF, 0xFFFFFFFF);
+	}
+
+
+	void loopBlockInitialise()
+	{
+	    initControl (0, 4, 0, 4, 1, 5, 20, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (1, 5, 1, 100, 0, 127, 7, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (2, 2, 1, 0, 0, 127, 104, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (3, 2, 1, 0, 0, 127, 105, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (4, 3, 2, 0, 0, 0, 106, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (5, 0, 2, 0, 0, 1, 115, 0xFF00FF00, 0xFFFFFFFF);
+	    initControl (6, 0, 2, 6, 6, 5, 116, 0xFFFF0000, 0xFFFFFFFF);
+	    initControl (7, 2, 1, 0, 0, 127, 117, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (8, 3, 2, 7, 7, 4, 118, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (9, 3, 2, 7, 7, 3, 119, 0xFF00FFFF, 0xFFFFFFFF);
+	}
+
+
+	void touchBlockInitialise()
+	{
+	    initControl (0, 5, 0, 127, 0, 127, 10, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (1, 5, 0, 127, 0, 127, 11, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (2, 5, 0, 127, 0, 127, 12, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (3, 5, 0, 127, 0, 127, 13, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (4, 5, 0, 127, 0, 127, 14, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (5, 0, 0, 0, 0, 1, 15, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (6, 6, 0, 0, 0, 127, 18, 0xFF00FFFF, 0xFFFFFFFF);
+	    setButtonTriState (6, 19);
+	    initControl (7, 0, 0, 0, 0, 1, 17, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (8, 2, 1, 0, 0, 127, 118, 0xFF00FFFF, 0xFFFFFFFF);
+	    initControl (9, 2, 1, 0, 0, 127, 119, 0xFF00FFFF, 0xFFFFFFFF);
+	}
+
+
+
+
+	void initialise()
+	{
+	    int type = getBlockTypeForID(getBlockIDForIndex(0));
+
+
+	    if (type == 3)  loopBlockInitialise();
+	    if (type == 2)  liveBlockInitialise();
+	    if (type == 5)  touchBlockInitialise();
+	}
+
+
+
+
+	void handleButtonDown (int index)
+	{
+	    onControlPress (index);
+	}
+
+
+	void handleButtonUp (int index)
+	{
+	    onControlRelease (index);
+	}
