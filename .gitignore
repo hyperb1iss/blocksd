@@ -14,3 +14,4 @@ build/
 *.so
 .coverage
 htmlcov/
+.hypothesis/
