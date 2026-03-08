@@ -37,7 +37,7 @@ log = logging.getLogger(__name__)
 TOPOLOGY_REQUEST_INTERVAL = 1.0  # seconds between topology requests
 TOPOLOGY_TIMEOUT = 30.0  # give up after this long without topology
 MAX_TOPOLOGY_REQUESTS = 4
-API_PING_TIMEOUT = 10.0  # seconds before device considered disconnected
+API_PING_TIMEOUT = 6.0  # seconds before device considered disconnected (C++ pingTimeoutSeconds)
 MASTER_PING_INTERVAL = 0.4  # 400ms for master block
 DNA_PING_INTERVAL = 1.666  # ~1666ms for DNA-connected blocks
 SERIAL_REQUEST_INTERVAL = 0.3  # 300ms between serial dump requests
@@ -80,6 +80,7 @@ class DeviceGroup:
         self._incoming_connections: list[_IncomingConnection] = []
         self._devices: dict[int, DeviceInfo] = {}  # uid → DeviceInfo
         self._pings: dict[int, PingEntry] = {}  # uid → PingEntry
+        self._api_attempts: dict[int, int] = {}  # uid → attempt count
 
         # Timing
         self._last_topology_request = 0.0
@@ -203,16 +204,25 @@ class DeviceGroup:
     # ── API mode management ───────────────────────────────────────────────
 
     def _start_api_on_unconnected(self) -> None:
-        """Send endAPIMode + beginAPIMode to devices not yet API-connected.
+        """Send beginAPIMode to devices not yet API-connected.
 
-        Matches C++ roli_ConnectedDeviceGroup behavior: sends both commands
-        every tick to all unconnected devices. The master relays to DNA devices.
+        Matches C++ startApiModeOnConnectedBlocks: retries every tick (200ms)
+        with no cap. First attempt sends endAPIMode + beginAPIMode to reset
+        cleanly; subsequent attempts only send beginAPIMode to avoid the
+        visible LED cycling that endAPIMode causes.
         """
         for dev in self._devices.values():
             if dev.uid in self._pings:
                 continue
-            log.debug("Activating API mode on %s (idx=%d)", dev.serial, dev.topology_index)
-            self.conn.send(build_end_api_mode(dev.topology_index))
+            attempts = self._api_attempts.get(dev.uid, 0)
+            self._api_attempts[dev.uid] = attempts + 1
+            if attempts == 0:
+                log.debug(
+                    "Activating API mode on %s (idx=%d)",
+                    dev.serial,
+                    dev.topology_index,
+                )
+                self.conn.send(build_end_api_mode(dev.topology_index))
             self.conn.send(build_begin_api_mode(dev.topology_index))
 
     def _send_pings(self, now: float) -> None:
@@ -234,8 +244,8 @@ class DeviceGroup:
     def _check_api_timeouts(self, now: float) -> None:
         """Drop API connection for devices that haven't ACK'd within the timeout.
 
-        Keeps the device in the device list so it can reconnect via
-        _start_api_on_unconnected without a full remove/add cycle.
+        Matches C++ checkApiTimeouts: removes the device fully and schedules
+        a topology rediscovery so the device can be re-detected cleanly.
         """
         timed_out = [
             uid for uid, ping in self._pings.items() if now - ping.last_ack > API_PING_TIMEOUT
@@ -243,10 +253,8 @@ class DeviceGroup:
         for uid in timed_out:
             dev = self._devices.get(uid)
             log.warning("Ping timeout: device %s", dev.serial if dev else uid)
-            self._pings.pop(uid, None)
-            if dev:
-                for cb in self.on_device_removed:
-                    cb(dev)
+            self._remove_device(uid)
+            self._schedule_topology_request()
 
     def _update_api_ping(self, uid: int) -> None:
         """Record an ACK from a device — marks it as API-connected."""
@@ -256,6 +264,7 @@ class DeviceGroup:
         else:
             log.info("Device API connected: %d", uid)
             self._pings[uid] = PingEntry(uid, last_ack=now, last_ping_sent=now, connected_at=now)
+            self._api_attempts.pop(uid, None)
             dev = self._devices.get(uid)
             if dev:
                 for cb in self.on_device_added:
@@ -332,8 +341,16 @@ class DeviceGroup:
         self._last_topology_received = time.monotonic()
         self._topology_requests_sent = 0
 
-        if not self._incoming_devices:
-            log.warning("Empty topology received, re-requesting")
+        # C++ endTopology validation: devices must be non-empty and fully connected
+        num_devs = len(self._incoming_devices)
+        num_conns = len(self._incoming_connections)
+        if num_devs == 0 or num_conns < num_devs - 1:
+            log.warning(
+                "Invalid topology: %d devices, %d connections (need >= %d), re-requesting",
+                num_devs,
+                num_conns,
+                max(num_devs - 1, 0),
+            )
             self._schedule_topology_request()
             return
 
@@ -348,6 +365,9 @@ class DeviceGroup:
 
         self._update_device_list()
         self._rebuild_topology()
+
+        # Reset API mode attempts — topology change means devices may have reset
+        self._api_attempts.clear()
 
         if first_topology:
             self.state = GroupState.RUNNING
