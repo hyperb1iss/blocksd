@@ -1,13 +1,8 @@
 """Main CLI application."""
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import typer
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 app = typer.Typer(
     name="blocksd",

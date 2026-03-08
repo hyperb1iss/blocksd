@@ -318,7 +318,10 @@ class DeviceGroup:
             self._schedule_topology_request()
             return
 
-        log.info(
+        first_topology = self.state == GroupState.REQUESTING_TOPOLOGY
+        level = logging.INFO if first_topology else logging.DEBUG
+        log.log(
+            level,
             "Topology: %d devices, %d connections",
             len(self._incoming_devices),
             len(self._incoming_connections),
@@ -327,7 +330,7 @@ class DeviceGroup:
         self._update_device_list()
         self._rebuild_topology()
 
-        if self.state == GroupState.REQUESTING_TOPOLOGY:
+        if first_topology:
             self.state = GroupState.RUNNING
 
     def on_device_version(self, topology_index: int, version: str) -> None:

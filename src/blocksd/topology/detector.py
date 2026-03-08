@@ -81,7 +81,7 @@ def scan_for_blocks() -> list[MidiPortPair]:
 
         if matched_out_idx >= 0:
             pairs.append(MidiPortPair(in_idx, matched_out_idx, in_name))
-            log.info("Found ROLI device: %s (in=%d, out=%d)", in_name, in_idx, matched_out_idx)
+            log.debug("Found ROLI device: %s (in=%d, out=%d)", in_name, in_idx, matched_out_idx)
         else:
             log.warning("No matching output for ROLI input: %s", in_name)
 
