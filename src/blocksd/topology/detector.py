@@ -54,8 +54,13 @@ def scan_for_blocks() -> list[MidiPortPair]:
     midi_in = rtmidi.MidiIn()
     midi_out = rtmidi.MidiOut()
 
-    input_ports = midi_in.get_ports()
-    output_ports = midi_out.get_ports()
+    try:
+        input_ports = midi_in.get_ports()
+        output_ports = midi_out.get_ports()
+    except Exception:
+        midi_in.delete()
+        midi_out.delete()
+        raise
 
     pairs: list[MidiPortPair] = []
 
@@ -84,5 +89,9 @@ def scan_for_blocks() -> list[MidiPortPair]:
             log.debug("Found ROLI device: %s (in=%d, out=%d)", in_name, in_idx, matched_out_idx)
         else:
             log.warning("No matching output for ROLI input: %s", in_name)
+
+    # Close ALSA sequencer clients to avoid exhausting /dev/snd/seq slots
+    midi_in.delete()
+    midi_out.delete()
 
     return pairs

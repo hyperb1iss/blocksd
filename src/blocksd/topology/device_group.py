@@ -58,6 +58,7 @@ class PingEntry:
 
     uid: int
     last_ack: float
+    last_ping_sent: float
     connected_at: float
 
 
@@ -79,6 +80,7 @@ class DeviceGroup:
         self._incoming_connections: list[_IncomingConnection] = []
         self._devices: dict[int, DeviceInfo] = {}  # uid → DeviceInfo
         self._pings: dict[int, PingEntry] = {}  # uid → PingEntry
+        self._api_attempt_times: dict[int, float] = {}  # uid → last attempt time
 
         # Timing
         self._last_topology_request = 0.0
@@ -202,22 +204,37 @@ class DeviceGroup:
     # ── API mode management ───────────────────────────────────────────────
 
     def _start_api_on_unconnected(self) -> None:
-        """Send endAPIMode + beginAPIMode to devices not yet API-connected."""
+        """Send endAPIMode + beginAPIMode to devices not yet API-connected.
+
+        Throttled to once per second per device to avoid flickering.
+        """
+        now = time.monotonic()
         for dev in self._devices.values():
-            if dev.uid not in self._pings:
-                log.debug("Activating API mode on %s (idx=%d)", dev.serial, dev.topology_index)
-                self.conn.send(build_end_api_mode(dev.topology_index))
-                self.conn.send(build_begin_api_mode(dev.topology_index))
+            if dev.uid in self._pings:
+                continue
+            last_attempt = self._api_attempt_times.get(dev.uid, 0.0)
+            if now - last_attempt < 1.0:
+                continue
+            log.debug("Activating API mode on %s (idx=%d)", dev.serial, dev.topology_index)
+            self.conn.send(build_end_api_mode(dev.topology_index))
+            self.conn.send(build_begin_api_mode(dev.topology_index))
+            self._api_attempt_times[dev.uid] = now
 
     def _send_pings(self, now: float) -> None:
-        """Send periodic pings to keep devices alive."""
+        """Send periodic pings to keep devices alive.
+
+        Uses the later of last_ack and last_ping_sent to avoid
+        hammering the device with pings before the ACK returns.
+        """
         for uid, ping in self._pings.items():
             dev = self._devices.get(uid)
             if dev is None:
                 continue
             interval = MASTER_PING_INTERVAL if dev.is_master else DNA_PING_INTERVAL
-            if now - ping.last_ack > interval:
+            last_activity = max(ping.last_ack, ping.last_ping_sent)
+            if now - last_activity > interval:
                 self.conn.send(build_ping(dev.topology_index))
+                ping.last_ping_sent = now
 
     def _check_api_timeouts(self, now: float) -> None:
         """Remove devices that haven't ACK'd within the timeout."""
@@ -236,7 +253,7 @@ class DeviceGroup:
             self._pings[uid].last_ack = now
         else:
             log.info("Device API connected: %d", uid)
-            self._pings[uid] = PingEntry(uid, now, now)
+            self._pings[uid] = PingEntry(uid, last_ack=now, last_ping_sent=now, connected_at=now)
             dev = self._devices.get(uid)
             if dev:
                 for cb in self.on_device_added:
@@ -259,6 +276,7 @@ class DeviceGroup:
         """Remove a device from tracking."""
         dev = self._devices.pop(uid, None)
         self._pings.pop(uid, None)
+        self._api_attempt_times.pop(uid, None)
         if dev:
             log.info("Device removed: %s", dev.serial)
             for cb in self.on_device_removed:

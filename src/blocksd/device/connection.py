@@ -77,15 +77,17 @@ class MidiConnection:
         return messages
 
     def close(self) -> None:
-        """Close both MIDI ports."""
+        """Close both MIDI ports and release ALSA sequencer clients."""
         if self._closed:
             return
         self._closed = True
         with contextlib.suppress(Exception):
             self._midi_in.cancel_callback()
             self._midi_in.close_port()
+            self._midi_in.delete()
         with contextlib.suppress(Exception):
             self._midi_out.close_port()
+            self._midi_out.delete()
         log.debug("Closed MIDI connection: %s", self.name)
 
     @property
