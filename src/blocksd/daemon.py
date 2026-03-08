@@ -1,1 +1,79 @@
 """Main daemon — asyncio event loop, signal handling, device lifecycle."""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import logging
+import signal
+from typing import TYPE_CHECKING
+
+from blocksd.config.schema import DaemonConfig
+from blocksd.logging import setup_logging
+from blocksd.topology.manager import TopologyManager
+
+if TYPE_CHECKING:
+    from blocksd.device.models import DeviceInfo, Topology
+
+log = logging.getLogger(__name__)
+
+
+async def run_daemon(config: DaemonConfig) -> None:
+    """Main daemon coroutine — manages ROLI Blocks devices until shutdown."""
+    setup_logging(verbose=config.verbose)
+    log.info("blocksd starting")
+
+    manager = TopologyManager()
+    manager.on_device_added.append(_on_device_added)
+    manager.on_device_removed.append(_on_device_removed)
+    manager.on_topology_changed.append(_on_topology_changed)
+
+    # Graceful shutdown on SIGINT/SIGTERM
+    loop = asyncio.get_running_loop()
+    stop_event = asyncio.Event()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, stop_event.set)
+
+    manager_task = asyncio.create_task(manager.run(), name="topology-manager")
+
+    log.info("blocksd ready — scanning for ROLI devices")
+    await stop_event.wait()
+
+    log.info("Shutting down...")
+    manager_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await manager_task
+
+    log.info("blocksd stopped")
+
+
+def start(config: DaemonConfig | None = None) -> None:
+    """Entry point — run the daemon with asyncio."""
+    if config is None:
+        config = DaemonConfig()
+    asyncio.run(run_daemon(config))
+
+
+# ── Event handlers ────────────────────────────────────────────────────────────
+
+
+def _on_device_added(dev: DeviceInfo) -> None:
+    log.info(
+        "✨ Device connected: %s (%s) — battery %d%%",
+        dev.block_type,
+        dev.serial,
+        dev.battery_level,
+    )
+
+
+def _on_device_removed(dev: DeviceInfo) -> None:
+    log.info("👋 Device disconnected: %s (%s)", dev.block_type, dev.serial)
+
+
+def _on_topology_changed(topo: Topology) -> None:
+    log.info(
+        "🔗 Topology: %d devices, %d connections",
+        len(topo.devices),
+        len(topo.connections),
+    )
