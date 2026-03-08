@@ -44,3 +44,7 @@ def status() -> None:
     typer.echo(f"Found {len(pairs)} ROLI device(s):")
     for pair in pairs:
         typer.echo(f"  {pair.name} (in={pair.input_port}, out={pair.output_port})")
+
+
+# Register install/uninstall commands
+import blocksd.cli.install as _install  # noqa: F401, E402

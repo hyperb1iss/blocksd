@@ -37,7 +37,7 @@ log = logging.getLogger(__name__)
 TOPOLOGY_REQUEST_INTERVAL = 1.0  # seconds between topology requests
 TOPOLOGY_TIMEOUT = 30.0  # give up after this long without topology
 MAX_TOPOLOGY_REQUESTS = 4
-API_PING_TIMEOUT = 6.0  # seconds before device considered disconnected
+API_PING_TIMEOUT = 10.0  # seconds before device considered disconnected
 MASTER_PING_INTERVAL = 0.4  # 400ms for master block
 DNA_PING_INTERVAL = 1.666  # ~1666ms for DNA-connected blocks
 SERIAL_REQUEST_INTERVAL = 0.3  # 300ms between serial dump requests
@@ -204,19 +204,23 @@ class DeviceGroup:
     # ── API mode management ───────────────────────────────────────────────
 
     def _start_api_on_unconnected(self) -> None:
-        """Send endAPIMode + beginAPIMode to devices not yet API-connected.
+        """Send beginAPIMode to devices not yet API-connected.
 
-        Throttled to once per second per device to avoid flickering.
+        Only sends endAPIMode on the first attempt (to clear stale state).
+        Subsequent reconnections skip endAPIMode to avoid LED flickering.
+        Throttled to once per 2 seconds per device.
         """
         now = time.monotonic()
         for dev in self._devices.values():
             if dev.uid in self._pings:
                 continue
             last_attempt = self._api_attempt_times.get(dev.uid, 0.0)
-            if now - last_attempt < 1.0:
+            if now - last_attempt < 2.0:
                 continue
+            first_attempt = dev.uid not in self._api_attempt_times
             log.debug("Activating API mode on %s (idx=%d)", dev.serial, dev.topology_index)
-            self.conn.send(build_end_api_mode(dev.topology_index))
+            if first_attempt:
+                self.conn.send(build_end_api_mode(dev.topology_index))
             self.conn.send(build_begin_api_mode(dev.topology_index))
             self._api_attempt_times[dev.uid] = now
 
@@ -237,14 +241,21 @@ class DeviceGroup:
                 ping.last_ping_sent = now
 
     def _check_api_timeouts(self, now: float) -> None:
-        """Remove devices that haven't ACK'd within the timeout."""
+        """Drop API connection for devices that haven't ACK'd within the timeout.
+
+        Keeps the device in the device list so it can reconnect via
+        _start_api_on_unconnected without a full remove/add cycle.
+        """
         timed_out = [
             uid for uid, ping in self._pings.items() if now - ping.last_ack > API_PING_TIMEOUT
         ]
         for uid in timed_out:
-            log.warning("Ping timeout: device %d", uid)
-            self._remove_device(uid)
-            self._schedule_topology_request()
+            dev = self._devices.get(uid)
+            log.warning("Ping timeout: device %s", dev.serial if dev else uid)
+            self._pings.pop(uid, None)
+            if dev:
+                for cb in self.on_device_removed:
+                    cb(dev)
 
     def _update_api_ping(self, uid: int) -> None:
         """Record an ACK from a device — marks it as API-connected."""
@@ -385,10 +396,15 @@ class DeviceGroup:
         is_start: bool,
         is_end: bool,
     ) -> None:
-        pass  # Touch events handled in Phase 6+
+        # Any message from the device proves it's alive
+        uid = self._uid_from_index(device_index)
+        if uid:
+            self._update_api_ping(uid)
 
     def on_button(self, device_index: int, timestamp: int, button_id: int, is_down: bool) -> None:
-        pass  # Button events handled in Phase 6+
+        uid = self._uid_from_index(device_index)
+        if uid:
+            self._update_api_ping(uid)
 
     def on_program_event(
         self, device_index: int, timestamp: int, data: tuple[int, int, int]
