@@ -14,7 +14,13 @@ from blocksd.topology.device_group import DeviceGroup
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from blocksd.device.models import DeviceInfo, Topology
+    from blocksd.device.models import (
+        ButtonEvent,
+        ConfigValue,
+        DeviceInfo,
+        Topology,
+        TouchEvent,
+    )
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +39,9 @@ class TopologyManager:
         self.on_device_added: list[Callable[[DeviceInfo], None]] = []
         self.on_device_removed: list[Callable[[DeviceInfo], None]] = []
         self.on_topology_changed: list[Callable[[Topology], None]] = []
+        self.on_touch_event: list[Callable[[TouchEvent], None]] = []
+        self.on_button_event: list[Callable[[ButtonEvent], None]] = []
+        self.on_config_changed: list[Callable[[int, ConfigValue], None]] = []
 
     async def run(self) -> None:
         """Main scan loop — runs until cancelled."""
@@ -74,6 +83,18 @@ class TopologyManager:
                     return dev
         return None
 
+    def get_config(self, uid: int) -> dict[int, ConfigValue]:
+        """Get all known config values for a device."""
+        for entry in self._groups.values():
+            cfg = entry.group.get_config(uid)
+            if cfg:
+                return cfg
+        return {}
+
+    def set_config(self, uid: int, item: int, value: int) -> bool:
+        """Set a config value on a device."""
+        return any(entry.group.set_config(uid, item, value) for entry in self._groups.values())
+
     # ── Scan cycle ────────────────────────────────────────────────────────
 
     async def _scan_cycle(self) -> None:
@@ -109,6 +130,9 @@ class TopologyManager:
         group.on_device_added = list(self.on_device_added)
         group.on_device_removed = list(self.on_device_removed)
         group.on_topology_changed = list(self.on_topology_changed)
+        group.on_touch_event = list(self.on_touch_event)
+        group.on_button_event = list(self.on_button_event)
+        group.on_config_changed = list(self.on_config_changed)
 
         task = asyncio.create_task(group.run(), name=f"group:{pair.name}")
         task.add_done_callback(lambda t, n=pair.name: self._on_group_done(n, t))

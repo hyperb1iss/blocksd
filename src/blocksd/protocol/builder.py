@@ -50,6 +50,21 @@ class HostPacketBuilder:
         self._writer.write_bits(item, BitSize.CONFIG_ITEM_INDEX)
         self._writer.write_bits(value & 0xFFFFFFFF, BitSize.CONFIG_ITEM_VALUE)
 
+    def config_request(self, item: int) -> None:
+        """Write a config request message."""
+        from blocksd.protocol.constants import ConfigCommand
+
+        self._writer.write_bits(MessageFromHost.CONFIG_MESSAGE, BitSize.MESSAGE_TYPE)
+        self._writer.write_bits(ConfigCommand.REQUEST_CONFIG, BitSize.CONFIG_COMMAND)
+        self._writer.write_bits(item, BitSize.CONFIG_ITEM_INDEX)
+
+    def config_request_user_sync(self) -> None:
+        """Request a full user config sync from the device."""
+        from blocksd.protocol.constants import ConfigCommand
+
+        self._writer.write_bits(MessageFromHost.CONFIG_MESSAGE, BitSize.MESSAGE_TYPE)
+        self._writer.write_bits(ConfigCommand.REQUEST_USER_SYNC, BitSize.CONFIG_COMMAND)
+
     def build(self) -> bytes:
         """Finalize and return the complete SysEx message."""
         payload = self._writer.get_data()
@@ -83,3 +98,27 @@ def build_end_api_mode(device_index: int = 0) -> bytes:
 def build_request_topology(device_index: int = 0) -> bytes:
     """Build a requestTopologyMessage packet."""
     return build_device_command(device_index, DeviceCommand.REQUEST_TOPOLOGY)
+
+
+def build_config_set(device_index: int, item: int, value: int) -> bytes:
+    """Build a config set packet."""
+    builder = HostPacketBuilder()
+    builder.write_sysex_header(device_index)
+    builder.config_set(item, value)
+    return builder.build()
+
+
+def build_config_request(device_index: int, item: int) -> bytes:
+    """Build a config request packet."""
+    builder = HostPacketBuilder()
+    builder.write_sysex_header(device_index)
+    builder.config_request(item)
+    return builder.build()
+
+
+def build_config_request_user_sync(device_index: int) -> bytes:
+    """Build a user config sync request packet."""
+    builder = HostPacketBuilder()
+    builder.write_sysex_header(device_index)
+    builder.config_request_user_sync()
+    return builder.build()

@@ -38,10 +38,11 @@ def _generate_service(bin_path: str) -> str:
         Wants=sound.target
 
         [Service]
-        Type=simple
+        Type=notify
         ExecStart={bin_path} run --daemon
         Restart=on-failure
         RestartSec=5
+        WatchdogSec=30
 
         [Install]
         WantedBy=default.target

@@ -39,9 +39,11 @@ ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter 
 | 🔌 **API Mode Keepalive** | Periodic pings prevent the 5-second device timeout that kills API mode |
 | 🏗️ **Topology Management** | Auto-discovers devices over USB, tracks DNA-connected blocks through master |
 | 🎭 **Full State Machine** | Serial → topology → API activation → ping loop, matching the C++ reference |
-| 💡 **LED Control** | RGB565 bitmap grid, built-in patterns (solid, gradient, rainbow, checkerboard) |
+| 💡 **LED Control** | RGB565 bitmap grid, CLI patterns (solid, gradient, rainbow, checkerboard) |
+| 👆 **Touch & Button Events** | Normalized touch data (x/y/z/velocity) and button callbacks |
+| ⚙️ **Device Config** | Read/write device settings (sensitivity, MIDI channel, scale, etc.) |
 | 🔊 **DAW Friendly** | ALSA multi-client — blocksd and your DAW share MIDI without conflict |
-| ⚙️ **systemd Integration** | User service with watchdog, udev rules for plug-and-play |
+| 🛡️ **systemd Integration** | Type=notify service, watchdog heartbeat, udev rules for plug-and-play |
 
 ## 📦 Install
 
@@ -67,8 +69,23 @@ uv run blocksd run        # run in foreground
 # Check for connected devices
 blocksd status
 
+# Probe devices for full info (serial, battery, type)
+blocksd status --probe
+
 # Run the daemon (foreground, verbose)
 blocksd run -v
+
+# Set LED patterns
+blocksd led solid '#ff00ff'
+blocksd led rainbow
+blocksd led gradient ff0000 0000ff --vertical
+blocksd led checkerboard ff0000 00ff00 --size 3
+blocksd led off
+
+# Device configuration
+blocksd config list                    # show all config IDs
+blocksd config get 10                  # read velocity sensitivity
+blocksd config set 10 50               # write velocity sensitivity
 
 # Install as a systemd user service
 sudo blocksd install
@@ -91,9 +108,9 @@ INFO  ✨ Device connected: lightpad_block_m (LPMJW6SWHSPD8H92) — battery 31%
 
 ```
 blocksd
-├── daemon.py                 asyncio main loop, signal handling
+├── daemon.py                 asyncio main loop, sd_notify, signal handling
 │   └── TopologyManager       polls MIDI ports every 1.5s
-│       └── DeviceGroup       per-USB lifecycle state machine
+│       └── DeviceGroup       per-USB lifecycle + touch/button/config events
 │           └── MidiConnection    python-rtmidi wrapper (SysEx I/O)
 ├── protocol/                 pure protocol logic (no I/O, fully testable)
 │   ├── constants.py          enums, headers, bit sizes
@@ -102,20 +119,29 @@ blocksd
 │   ├── builder.py            host → device packet construction
 │   ├── decoder.py            device → host packet parsing
 │   ├── serial.py             serial number request/parse
-│   └── data_change.py        SharedDataChange diff encoder
+│   ├── data_change.py        SharedDataChange diff encoder
+│   └── remote_heap.py        ACK-tracked heap manager for live updates
 ├── device/
-│   ├── models.py             BlockType, DeviceInfo, Topology
+│   ├── models.py             BlockType, DeviceInfo, TouchEvent, ButtonEvent
+│   ├── config_ids.py         known configuration item IDs
 │   ├── registry.py           serial prefix → device type mapping
 │   └── connection.py         rtmidi ↔ asyncio bridge
 ├── led/
 │   ├── bitmap.py             RGB565 LED grid (15×15 Lightpad)
 │   └── patterns.py           solid, gradient, rainbow, checkerboard
+├── littlefoot/
+│   ├── opcodes.py            LittleFoot VM opcode definitions
+│   ├── assembler.py          bytecode assembler with label support
+│   └── programs.py           BitmapLEDProgram (94-byte repaint)
 ├── topology/
 │   ├── detector.py           MIDI port scanning
 │   ├── device_group.py       connection lifecycle (the big one)
 │   └── manager.py            orchestrates DeviceGroups
+├── sdnotify.py               lightweight systemd notification (no deps)
 └── cli/
-    ├── app.py                Typer commands (run, status)
+    ├── app.py                Typer commands (run, status --probe)
+    ├── led.py                LED pattern commands (solid, rainbow, etc.)
+    ├── config.py             device config get/set/list
     └── install.py            systemd/udev setup
 ```
 
@@ -162,7 +188,7 @@ uv sync                       # install all dependencies
 ### Testing
 
 ```bash
-uv run pytest                  # all tests (241 currently)
+uv run pytest                  # all tests (275 currently)
 uv run pytest -v               # verbose
 uv run pytest tests/protocol/  # specific module
 ```
@@ -191,9 +217,9 @@ See [VISION.md](VISION.md) for the full vision, use cases, and ideas beyond musi
 - [x] **Remote Heap Manager** — ACK tracking, retransmission, heap state sync
 - [x] **LittleFoot Program Upload** — compile/upload BitmapLEDProgram to device
 - [x] **CLI LED Commands** — `blocksd led solid #ff00ff`, `blocksd led rainbow`
-- [ ] **Touch/Button Events** — expose via callback API or D-Bus
-- [ ] **Config Commands** — read/write device settings
-- [ ] **sd_notify Integration** — proper systemd watchdog heartbeat
+- [x] **Touch/Button Events** — normalized callbacks with full velocity data
+- [x] **Config Commands** — read/write device settings via CLI
+- [x] **sd_notify Integration** — Type=notify service with watchdog heartbeat
 - [ ] **D-Bus Interface** — IPC for external applications
 - [ ] **Hypercolor Integration** — ROLI Blocks as an RGB device backend
 

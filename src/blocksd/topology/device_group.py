@@ -13,11 +13,20 @@ from dataclasses import dataclass
 from enum import StrEnum, auto
 from typing import TYPE_CHECKING
 
-from blocksd.device.models import BlockType, DeviceConnection, DeviceInfo, Topology
+from blocksd.device.models import (
+    BlockType,
+    ButtonEvent,
+    ConfigValue,
+    DeviceConnection,
+    DeviceInfo,
+    Topology,
+    TouchEvent,
+)
 from blocksd.device.registry import block_type_from_serial, heap_size_for_block
 from blocksd.littlefoot.programs import bitmap_led_program, bitmap_led_program_size
 from blocksd.protocol.builder import (
     build_begin_api_mode,
+    build_config_request,
     build_end_api_mode,
     build_ping,
     build_request_topology,
@@ -84,6 +93,7 @@ class DeviceGroup:
         self._pings: dict[int, PingEntry] = {}  # uid → PingEntry
         self._end_api_sent: set[int] = set()  # UIDs that received endAPIMode this session
         self._heaps: dict[int, RemoteHeap] = {}  # uid → RemoteHeap
+        self._config: dict[int, dict[int, ConfigValue]] = {}  # uid → {item → ConfigValue}
 
         # Timing
         self._last_topology_request = 0.0
@@ -96,6 +106,9 @@ class DeviceGroup:
         self.on_device_added: list[Callable[[DeviceInfo], None]] = []
         self.on_device_removed: list[Callable[[DeviceInfo], None]] = []
         self.on_topology_changed: list[Callable[[Topology], None]] = []
+        self.on_touch_event: list[Callable[[TouchEvent], None]] = []
+        self.on_button_event: list[Callable[[ButtonEvent], None]] = []
+        self.on_config_changed: list[Callable[[int, ConfigValue], None]] = []
 
     async def run(self) -> None:
         """Main lifecycle loop — runs until connection closes or failure."""
@@ -276,6 +289,7 @@ class DeviceGroup:
                 if uid not in self._heaps:
                     self._heaps[uid] = RemoteHeap(heap_size_for_block(dev.block_type))
                     self._load_led_program(uid)
+                self._request_config_sync(uid)
                 for cb in self.on_device_added:
                     cb(dev)
 
@@ -332,6 +346,33 @@ class DeviceGroup:
             if packet is not None:
                 self.conn.send(packet)
 
+    # ── Config management ────────────────────────────────────────────────
+
+    def get_config(self, uid: int) -> dict[int, ConfigValue]:
+        """Get all known config values for a device."""
+        return dict(self._config.get(uid, {}))
+
+    def set_config(self, uid: int, item: int, value: int) -> bool:
+        """Send a config set command to a device."""
+        dev = self._devices.get(uid)
+        if dev is None or uid not in self._pings:
+            return False
+        self.conn.send(build_config_request(dev.topology_index, item))
+        from blocksd.protocol.builder import build_config_set
+
+        self.conn.send(build_config_set(dev.topology_index, item, value))
+        return True
+
+    def _request_config_sync(self, uid: int) -> None:
+        """Request a full config sync from a newly connected device."""
+        dev = self._devices.get(uid)
+        if dev is None:
+            return
+        from blocksd.protocol.builder import build_config_request_user_sync
+
+        self.conn.send(build_config_request_user_sync(dev.topology_index))
+        log.debug("Requested config sync for %s", dev.serial)
+
     # ── Device management ─────────────────────────────────────────────────
 
     def _uid_from_serial(self, serial: str) -> int:
@@ -357,6 +398,7 @@ class DeviceGroup:
         dev = self._devices.pop(uid, None)
         self._pings.pop(uid, None)
         self._heaps.pop(uid, None)
+        self._config.pop(uid, None)
         # NOTE: _end_api_sent is intentionally NOT cleared here.
         # If the device reappears (e.g. transient DNA glitch), we skip
         # endAPIMode since the device is likely still in API mode.
@@ -481,15 +523,22 @@ class DeviceGroup:
         is_start: bool,
         is_end: bool,
     ) -> None:
-        # Any message from the device proves it's alive
         uid = self._uid_from_index(device_index)
         if uid:
             self._update_api_ping(uid)
+            event = TouchEvent.from_raw(
+                uid, timestamp, touch_index, x, y, z, vx, vy, vz, is_start, is_end
+            )
+            for cb in self.on_touch_event:
+                cb(event)
 
     def on_button(self, device_index: int, timestamp: int, button_id: int, is_down: bool) -> None:
         uid = self._uid_from_index(device_index)
         if uid:
             self._update_api_ping(uid)
+            event = ButtonEvent(uid=uid, timestamp=timestamp, button_id=button_id, is_down=is_down)
+            for cb in self.on_button_event:
+                cb(event)
 
     def on_program_event(
         self, device_index: int, timestamp: int, data: tuple[int, int, int]
@@ -499,16 +548,33 @@ class DeviceGroup:
     def on_config_update(
         self, device_index: int, item: int, value: int, min_val: int, max_val: int
     ) -> None:
-        pass  # Config handled in Phase 5
+        uid = self._uid_from_index(device_index)
+        if uid:
+            self._update_api_ping(uid)
+            cv = ConfigValue(item=item, value=value, min_val=min_val, max_val=max_val)
+            self._config.setdefault(uid, {})[item] = cv
+            for cb in self.on_config_changed:
+                cb(uid, cv)
 
     def on_config_set(self, device_index: int, item: int, value: int) -> None:
-        pass
+        uid = self._uid_from_index(device_index)
+        if uid:
+            self._update_api_ping(uid)
+            cv = ConfigValue(item=item, value=value)
+            self._config.setdefault(uid, {})[item] = cv
+            for cb in self.on_config_changed:
+                cb(uid, cv)
 
     def on_config_factory_sync_end(self, device_index: int) -> None:
-        pass
+        uid = self._uid_from_index(device_index)
+        if uid:
+            log.debug("Factory sync complete for device %d", uid)
 
     def on_config_factory_sync_reset(self, device_index: int) -> None:
-        pass
+        uid = self._uid_from_index(device_index)
+        if uid:
+            self._config.pop(uid, None)
+            log.debug("Factory sync reset for device %d", uid)
 
     def on_log_message(self, device_index: int, message: str) -> None:
         uid = self._uid_from_index(device_index)
