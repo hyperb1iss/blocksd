@@ -201,9 +201,5 @@ uv run ty check             # types clean
 ---
 
 <div align="center">
-
-🔌 Built by [hyperb1iss](https://github.com/hyperb1iss)
-
-*Keeping ROLI Blocks alive on Linux since the official software won't.*
-
+    ✦ Built with obsession by <a href="https://hyperbliss.tech"><strong>Hyperbliss</strong></a> ✦
 </div>
