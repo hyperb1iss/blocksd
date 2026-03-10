@@ -1,24 +1,38 @@
-# 🔌 blocksd
+<h1 align="center">
+  <br>
+  🔌 blocksd
+  <br>
+</h1>
 
-<div align="center">
+<p align="center">
+  <strong>ROLI Blocks, Alive on Linux</strong><br>
+  <sub>✦ Device Daemon for Topology, Keepalive & LED Control ✦</sub>
+</p>
 
-**Linux daemon that keeps ROLI Blocks alive**
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.13+-3776ab?style=for-the-badge&logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/asyncio-Event_Loop-80ffea?style=for-the-badge&logo=python&logoColor=0a0a0f" alt="asyncio">
+  <img src="https://img.shields.io/badge/MIDI-SysEx-ff6ac1?style=for-the-badge&logo=midi&logoColor=white" alt="MIDI">
+  <img src="https://img.shields.io/badge/License-ISC-e135ff?style=for-the-badge" alt="License">
+</p>
 
-[![Python](https://img.shields.io/badge/Python-3.13+-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![License](https://img.shields.io/badge/License-ISC-e135ff?style=for-the-badge)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Alpha-f1fa8c?style=for-the-badge)]()
-
-[⚡ Quick Start](#-quick-start) · [🏗️ Architecture](#-architecture) · [🧪 Development](#-development) · [🔮 Vision](VISION.md)
-
-</div>
+<p align="center">
+  <a href="#-features">Features</a> •
+  <a href="#-install">Install</a> •
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-architecture">Architecture</a> •
+  <a href="#-supported-devices">Devices</a> •
+  <a href="#-development">Development</a> •
+  <a href="VISION.md">Vision</a>
+</p>
 
 ---
 
-ROLI Blocks devices (Lightpad, Seaboard Block, LUMI Keys, Live/Loop/Touch/Control blocks) need an active host-side handshake over MIDI SysEx to enter "API mode." Without it, they show a searching animation and eventually power off. ROLI's official software is Windows/macOS only.
+ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter "API mode." Without it, they show a searching animation and eventually power off. There's no official Linux support.
 
-**blocksd** is a Linux daemon that implements the full ROLI Blocks protocol — device discovery, topology management, API mode keepalive, and LED control — so your Blocks stay alive and useful on Linux.
+**blocksd** implements the full ROLI Blocks protocol — device discovery, topology management, API mode keepalive, and LED control — so your Blocks stay alive and useful on Linux.
 
-## ✦ What It Does
+## ✦ Features
 
 | Capability | Description |
 | --- | --- |
@@ -29,7 +43,7 @@ ROLI Blocks devices (Lightpad, Seaboard Block, LUMI Keys, Live/Loop/Touch/Contro
 | 🔊 **DAW Friendly** | ALSA multi-client — blocksd and your DAW share MIDI without conflict |
 | ⚙️ **systemd Integration** | User service with watchdog, udev rules for plug-and-play |
 
-## 📦 Installation
+## 📦 Install
 
 ### From Source (Recommended)
 
@@ -170,7 +184,7 @@ uv run ty check                # type check
 
 ## 🗺️ Roadmap
 
-See [VISION.md](VISION.md) for the full vision, use cases, and ideas.
+See [VISION.md](VISION.md) for the full vision, use cases, and ideas beyond music.
 
 **Remaining work:**
 
@@ -181,6 +195,7 @@ See [VISION.md](VISION.md) for the full vision, use cases, and ideas.
 - [ ] **Config Commands** — read/write device settings
 - [ ] **sd_notify Integration** — proper systemd watchdog heartbeat
 - [ ] **D-Bus Interface** — IPC for external applications
+- [ ] **Hypercolor Integration** — ROLI Blocks as an RGB device backend
 
 ## 💜 Contributing
 
@@ -196,10 +211,14 @@ uv run ty check             # types clean
 
 ## ⚖️ License
 
-[ISC](LICENSE) — free for any use.
+[ISC](LICENSE)
 
 ---
 
-<div align="center">
+<p align="center">
+  <sub>
+    If blocksd keeps your Blocks alive, give us a ⭐ or <a href="https://ko-fi.com/hyperb1iss">support the project</a>
+    <br><br>
     ✦ Built with obsession by <a href="https://hyperbliss.tech"><strong>Hyperbliss</strong></a> ✦
-</div>
+  </sub>
+</p>
