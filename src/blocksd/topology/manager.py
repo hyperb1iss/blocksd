@@ -59,6 +59,21 @@ class TopologyManager:
     def groups(self) -> list[DeviceGroup]:
         return [entry.group for entry in self._groups.values()]
 
+    def set_led_data(self, uid: int, pixel_data: bytes | bytearray) -> bool:
+        """Write LED pixel data to a device across all groups.
+
+        Returns True if the write was accepted by any group.
+        """
+        return any(entry.group.set_led_data(uid, pixel_data) for entry in self._groups.values())
+
+    def find_device(self, uid: int) -> DeviceInfo | None:
+        """Find a device by UID across all groups."""
+        for entry in self._groups.values():
+            for dev in entry.group.topology.devices:
+                if dev.uid == uid:
+                    return dev
+        return None
+
     # ── Scan cycle ────────────────────────────────────────────────────────
 
     async def _scan_cycle(self) -> None:

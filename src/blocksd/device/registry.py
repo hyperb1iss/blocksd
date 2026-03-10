@@ -36,3 +36,20 @@ def is_control_block(serial: str) -> bool:
 
 def is_lumi_keys_block(serial: str) -> bool:
     return serial[:3] == "LKB"
+
+
+def heap_size_for_block(block_type: BlockType) -> int:
+    """Return program+heap memory size for a device type.
+
+    Pad blocks (Lightpad, Lightpad M) get the full 7200 bytes.
+    Control blocks (Live, Loop, Dev, Touch) get 3000 bytes.
+    LUMI Keys and Seaboard use pad block sizing.
+    """
+    from blocksd.protocol.constants import (
+        CONTROL_BLOCK_PROGRAM_HEAP_SIZE,
+        PAD_BLOCK_PROGRAM_HEAP_SIZE,
+    )
+
+    if block_type in (BlockType.LIVE, BlockType.LOOP, BlockType.DEV_CTRL, BlockType.TOUCH):
+        return CONTROL_BLOCK_PROGRAM_HEAP_SIZE
+    return PAD_BLOCK_PROGRAM_HEAP_SIZE

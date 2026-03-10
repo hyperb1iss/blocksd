@@ -46,5 +46,6 @@ def status() -> None:
         typer.echo(f"  {pair.name} (in={pair.input_port}, out={pair.output_port})")
 
 
-# Register install/uninstall commands
+# Register subcommands
 import blocksd.cli.install as _install  # noqa: F401, E402
+import blocksd.cli.led as _led  # noqa: F401, E402

@@ -13,8 +13,9 @@ from dataclasses import dataclass
 from enum import StrEnum, auto
 from typing import TYPE_CHECKING
 
-from blocksd.device.models import DeviceConnection, DeviceInfo, Topology
-from blocksd.device.registry import block_type_from_serial
+from blocksd.device.models import BlockType, DeviceConnection, DeviceInfo, Topology
+from blocksd.device.registry import block_type_from_serial, heap_size_for_block
+from blocksd.littlefoot.programs import bitmap_led_program, bitmap_led_program_size
 from blocksd.protocol.builder import (
     build_begin_api_mode,
     build_end_api_mode,
@@ -23,6 +24,7 @@ from blocksd.protocol.builder import (
 )
 from blocksd.protocol.constants import SERIAL_DUMP_REQUEST
 from blocksd.protocol.decoder import decode_packet
+from blocksd.protocol.remote_heap import RemoteHeap
 from blocksd.protocol.serial import is_serial_response, parse_serial_response
 
 if TYPE_CHECKING:
@@ -81,6 +83,7 @@ class DeviceGroup:
         self._devices: dict[int, DeviceInfo] = {}  # uid → DeviceInfo
         self._pings: dict[int, PingEntry] = {}  # uid → PingEntry
         self._end_api_sent: set[int] = set()  # UIDs that received endAPIMode this session
+        self._heaps: dict[int, RemoteHeap] = {}  # uid → RemoteHeap
 
         # Timing
         self._last_topology_request = 0.0
@@ -196,6 +199,7 @@ class DeviceGroup:
         self._check_api_timeouts(now)
         self._start_api_on_unconnected()
         self._send_pings(now)
+        self._flush_heaps(now)
 
     def _send_topology_request(self) -> None:
         self._topology_requests_sent += 1
@@ -268,8 +272,65 @@ class DeviceGroup:
             self._pings[uid] = PingEntry(uid, last_ack=now, last_ping_sent=now, connected_at=now)
             dev = self._devices.get(uid)
             if dev:
+                # Create a RemoteHeap and load LED program
+                if uid not in self._heaps:
+                    self._heaps[uid] = RemoteHeap(heap_size_for_block(dev.block_type))
+                    self._load_led_program(uid)
                 for cb in self.on_device_added:
                     cb(dev)
+
+    def get_heap(self, uid: int) -> RemoteHeap | None:
+        """Get the RemoteHeap for a device, or None if not API-connected."""
+        return self._heaps.get(uid)
+
+    def set_led_data(self, uid: int, pixel_data: bytes | bytearray) -> bool:
+        """Write RGB565 LED pixel data to a device's heap.
+
+        The data is written at the BitmapLEDProgram offset (after the program
+        bytecode). Returns True if the write was accepted, False if the device
+        has no heap or isn't a LED-capable block.
+        """
+        heap = self._heaps.get(uid)
+        if heap is None:
+            return False
+        offset = bitmap_led_program_size()
+        if offset + len(pixel_data) > heap.size:
+            return False
+        heap.set_bytes(offset, pixel_data)
+        return True
+
+    def _load_led_program(self, uid: int) -> None:
+        """Load BitmapLEDProgram into a device's heap for LED control."""
+        dev = self._devices.get(uid)
+        heap = self._heaps.get(uid)
+        if dev is None or heap is None:
+            return
+        if dev.block_type not in (
+            BlockType.LIGHTPAD,
+            BlockType.LIGHTPAD_M,
+            BlockType.LUMI_KEYS,
+        ):
+            return
+        program = bitmap_led_program()
+        heap.set_bytes(0, program)
+        log.debug("Loaded BitmapLEDProgram (%d bytes) for %s", len(program), dev.serial)
+
+    def _flush_heaps(self, now: float) -> None:
+        """Send pending heap changes and retransmit timed-out packets."""
+        for uid, heap in self._heaps.items():
+            dev = self._devices.get(uid)
+            if dev is None:
+                continue
+
+            # Retransmit timed-out packets
+            retransmit = heap.get_retransmit(now)
+            if retransmit is not None:
+                self.conn.send(retransmit)
+
+            # Send new changes if dirty
+            packet = heap.send_changes(dev.topology_index, now)
+            if packet is not None:
+                self.conn.send(packet)
 
     # ── Device management ─────────────────────────────────────────────────
 
@@ -295,6 +356,7 @@ class DeviceGroup:
         """Remove a device from tracking (preserves _end_api_sent guard)."""
         dev = self._devices.pop(uid, None)
         self._pings.pop(uid, None)
+        self._heaps.pop(uid, None)
         # NOTE: _end_api_sent is intentionally NOT cleared here.
         # If the device reappears (e.g. transient DNA glitch), we skip
         # endAPIMode since the device is likely still in API mode.
@@ -397,6 +459,8 @@ class DeviceGroup:
         uid = self._uid_from_index(device_index)
         if uid:
             self._update_api_ping(uid)
+            if heap := self._heaps.get(uid):
+                heap.handle_ack(counter)
 
     def on_firmware_update_ack(self, device_index: int, code: int, detail: int) -> None:
         uid = self._uid_from_index(device_index)
