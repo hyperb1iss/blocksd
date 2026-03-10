@@ -350,7 +350,10 @@ class DeviceGroup:
 
     def on_topology_end(self) -> None:
         self._last_topology_received = time.monotonic()
-        self._topology_requests_sent = 0
+        # NOTE: _topology_requests_sent is NOT reset here — matches C++ endTopology.
+        # Only _schedule_topology_request() resets it (on timeout or unknown index).
+        # This gives us 4 total requests (initial + 3 periodic at 30s intervals),
+        # then stops. Without this, we'd re-request topology every 30s forever.
 
         # C++ endTopology validation: devices must be non-empty and fully connected
         num_devs = len(self._incoming_devices)
