@@ -80,7 +80,7 @@ class DeviceGroup:
         self._incoming_connections: list[_IncomingConnection] = []
         self._devices: dict[int, DeviceInfo] = {}  # uid → DeviceInfo
         self._pings: dict[int, PingEntry] = {}  # uid → PingEntry
-        self._api_attempts: dict[int, int] = {}  # uid → attempt count
+        self._end_api_sent: set[int] = set()  # UIDs that received endAPIMode this session
 
         # Timing
         self._last_topology_request = 0.0
@@ -183,18 +183,19 @@ class DeviceGroup:
             self.state = GroupState.FAILED
 
     def _tick_running(self, now: float) -> None:
-        self._check_api_timeouts(now)
-        self._start_api_on_unconnected()
-        self._send_pings(now)
-
-        # Re-request topology if stale
+        # Topology re-request: matches C++ timerCallback condition exactly.
+        # _schedule_topology_request() resets _last_topology_received to 0.0,
+        # making this fire immediately (with 1s cooldown) after a device timeout.
         if (
-            self._last_topology_received > 0
-            and now - self._last_topology_received > TOPOLOGY_TIMEOUT
+            now - self._last_topology_received > TOPOLOGY_TIMEOUT
             and now - self._last_topology_request > TOPOLOGY_REQUEST_INTERVAL
             and self._topology_requests_sent < MAX_TOPOLOGY_REQUESTS
         ):
             self._send_topology_request()
+
+        self._check_api_timeouts(now)
+        self._start_api_on_unconnected()
+        self._send_pings(now)
 
     def _send_topology_request(self) -> None:
         self._topology_requests_sent += 1
@@ -206,38 +207,39 @@ class DeviceGroup:
     def _start_api_on_unconnected(self) -> None:
         """Send beginAPIMode to devices not yet API-connected.
 
-        Matches C++ startApiModeOnConnectedBlocks: retries every tick (200ms)
-        with no cap. First attempt sends endAPIMode + beginAPIMode to reset
-        cleanly; subsequent attempts only send beginAPIMode to avoid the
-        visible LED cycling that endAPIMode causes.
+        endAPIMode is sent exactly ONCE per device per group session to reset
+        any stale state from a previous connection. It is never re-sent even
+        if the device is removed and re-added (e.g. transient DNA topology
+        glitch), because the device is likely still in API mode and endAPIMode
+        would cause a visible LED reset.
         """
         for dev in self._devices.values():
             if dev.uid in self._pings:
                 continue
-            attempts = self._api_attempts.get(dev.uid, 0)
-            self._api_attempts[dev.uid] = attempts + 1
-            if attempts == 0:
+            if dev.uid not in self._end_api_sent:
                 log.debug(
                     "Activating API mode on %s (idx=%d)",
                     dev.serial,
                     dev.topology_index,
                 )
                 self.conn.send(build_end_api_mode(dev.topology_index))
+                self._end_api_sent.add(dev.uid)
             self.conn.send(build_begin_api_mode(dev.topology_index))
 
     def _send_pings(self, now: float) -> None:
         """Send periodic pings to keep devices alive.
 
-        Uses the later of last_ack and last_ping_sent to avoid
-        hammering the device with pings before the ACK returns.
+        Matches C++ BlockImplementation::handleTimerTick: ping interval is
+        measured from last SEND time only (not ACK time). This keeps the
+        cadence steady regardless of ACK latency — critical for DNA devices
+        where the 5000ms device-side timeout is tight against the 1666ms interval.
         """
         for uid, ping in self._pings.items():
             dev = self._devices.get(uid)
             if dev is None:
                 continue
             interval = MASTER_PING_INTERVAL if dev.is_master else DNA_PING_INTERVAL
-            last_activity = max(ping.last_ack, ping.last_ping_sent)
-            if now - last_activity > interval:
+            if now - ping.last_ping_sent > interval:
                 self.conn.send(build_ping(dev.topology_index))
                 ping.last_ping_sent = now
 
@@ -264,7 +266,6 @@ class DeviceGroup:
         else:
             log.info("Device API connected: %d", uid)
             self._pings[uid] = PingEntry(uid, last_ack=now, last_ping_sent=now, connected_at=now)
-            self._api_attempts.pop(uid, None)
             dev = self._devices.get(uid)
             if dev:
                 for cb in self.on_device_added:
@@ -277,16 +278,26 @@ class DeviceGroup:
         return hash(serial) & 0xFFFFFFFFFFFFFFFF
 
     def _uid_from_index(self, topology_index: int) -> int:
-        """Look up device UID by topology index."""
+        """Look up device UID by topology index.
+
+        Matches C++ getDeviceIDFromIndex: schedules a topology re-request
+        when an unknown index is received while running, indicating a
+        topology change we haven't seen yet.
+        """
         for dev in self._devices.values():
             if dev.topology_index == topology_index:
                 return dev.uid
+        if self.state == GroupState.RUNNING and self._devices:
+            self._schedule_topology_request()
         return 0
 
     def _remove_device(self, uid: int) -> None:
-        """Remove a device from tracking."""
+        """Remove a device from tracking (preserves _end_api_sent guard)."""
         dev = self._devices.pop(uid, None)
         self._pings.pop(uid, None)
+        # NOTE: _end_api_sent is intentionally NOT cleared here.
+        # If the device reappears (e.g. transient DNA glitch), we skip
+        # endAPIMode since the device is likely still in API mode.
         if dev:
             log.info("Device removed: %s", dev.serial)
             for cb in self.on_device_removed:
@@ -365,9 +376,6 @@ class DeviceGroup:
 
         self._update_device_list()
         self._rebuild_topology()
-
-        # Reset API mode attempts — topology change means devices may have reset
-        self._api_attempts.clear()
 
         if first_topology:
             self.state = GroupState.RUNNING
