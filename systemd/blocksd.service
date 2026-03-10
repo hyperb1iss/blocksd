@@ -15,14 +15,12 @@ WatchdogSec=30
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/run/blocksd
 PrivateTmp=true
 ProtectKernelTunables=true
 ProtectControlGroups=true
 
 # Needs access to ALSA/MIDI
 SupplementaryGroups=audio
-DeviceAllow=char-usb_device rwm
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

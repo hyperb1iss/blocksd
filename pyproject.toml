@@ -41,6 +41,7 @@ blocksd = "blocksd.cli.app:app"
 Homepage = "https://github.com/hyperb1iss/blocksd"
 Repository = "https://github.com/hyperb1iss/blocksd"
 Issues = "https://github.com/hyperb1iss/blocksd/issues"
+Changelog = "https://github.com/hyperb1iss/blocksd/releases"
 
 [build-system]
 requires = ["hatchling"]

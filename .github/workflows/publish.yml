@@ -1,0 +1,20 @@
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  pypi:
+    uses: hyperb1iss/shared-workflows/.github/workflows/python-publish.yml@v1
+    permissions:
+      contents: read
+      id-token: write
+
+  github-release:
+    uses: hyperb1iss/shared-workflows/.github/workflows/github-release.yml@v1
+    needs: [pypi]
+    permissions:
+      contents: write
+      actions: read
+    secrets: inherit

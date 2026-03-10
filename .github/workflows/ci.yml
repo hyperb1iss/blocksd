@@ -1,0 +1,14 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    uses: hyperb1iss/shared-workflows/.github/workflows/python-ci.yml@v1
+    with:
+      python-version: "3.13"
+      system-deps: libasound2-dev
