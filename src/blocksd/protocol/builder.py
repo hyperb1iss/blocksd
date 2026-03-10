@@ -22,6 +22,11 @@ class HostPacketBuilder:
         self._header: bytes = b""
         self._writer = Packed7BitWriter(max_bytes)
 
+    @property
+    def writer(self) -> Packed7BitWriter:
+        """Access the underlying bit writer (for DataChangeEncoder)."""
+        return self._writer
+
     def write_sysex_header(self, device_index: int) -> None:
         """Write SysEx header with device topology index."""
         self._header = ROLI_SYSEX_HEADER + bytes([device_index & 0x3F])
@@ -30,6 +35,11 @@ class HostPacketBuilder:
         """Write a device command message (beginAPIMode, ping, etc.)."""
         self._writer.write_bits(MessageFromHost.DEVICE_COMMAND, BitSize.MESSAGE_TYPE)
         self._writer.write_bits(command, BitSize.DEVICE_COMMAND)
+
+    def begin_data_changes(self, packet_index: int) -> None:
+        """Write SharedDataChange message header with 16-bit packet index."""
+        self._writer.write_bits(MessageFromHost.SHARED_DATA_CHANGE, BitSize.MESSAGE_TYPE)
+        self._writer.write_bits(packet_index, BitSize.PACKET_INDEX)
 
     def config_set(self, item: int, value: int) -> None:
         """Write a config set message."""
