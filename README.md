@@ -5,8 +5,8 @@
 </h1>
 
 <p align="center">
-  <strong>ROLI Blocks, Alive on Linux</strong><br>
-  <sub>✦ Device Daemon for Topology, Keepalive & LED Control ✦</sub>
+  <strong>Linux Daemon for ROLI Blocks Devices</strong><br>
+  <sub>✦ Topology · Keepalive · LED Control ✦</sub>
 </p>
 
 <p align="center">
