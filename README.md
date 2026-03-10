@@ -6,20 +6,20 @@
 
 <p align="center">
   <strong>Linux Daemon for ROLI Blocks Devices</strong><br>
-  <sub>✦ Topology · Keepalive · LED Control ✦</sub>
+  <sub>✦ Topology · Keepalive · LED Control · Touch Events ✦</sub>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Python-3.13+-3776ab?style=for-the-badge&logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/asyncio-Event_Loop-80ffea?style=for-the-badge&logo=python&logoColor=0a0a0f" alt="asyncio">
-  <img src="https://img.shields.io/badge/MIDI-SysEx-ff6ac1?style=for-the-badge&logo=midi&logoColor=white" alt="MIDI">
-  <img src="https://img.shields.io/badge/License-ISC-e135ff?style=for-the-badge" alt="License">
+  <a href="https://github.com/hyperb1iss/blocksd/actions/workflows/ci.yml"><img src="https://github.com/hyperb1iss/blocksd/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://pypi.org/project/blocksd/"><img src="https://img.shields.io/pypi/v/blocksd?color=e135ff" alt="PyPI"></a>
+  <img src="https://img.shields.io/badge/Python-3.13+-3776ab?logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/License-ISC-e135ff" alt="License">
 </p>
 
 <p align="center">
   <a href="#-features">Features</a> •
   <a href="#-install">Install</a> •
-  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-usage">Usage</a> •
   <a href="#-architecture">Architecture</a> •
   <a href="#-supported-devices">Devices</a> •
   <a href="#-development">Development</a> •
@@ -30,7 +30,7 @@
 
 ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter "API mode." Without it, they show a searching animation and eventually power off. There's no official Linux support.
 
-**blocksd** implements the full ROLI Blocks protocol — device discovery, topology management, API mode keepalive, and LED control — so your Blocks stay alive and useful on Linux.
+**blocksd** implements the full ROLI Blocks protocol — device discovery, topology management, API mode keepalive, LED control, touch events, and device configuration — so your Blocks stay alive and useful on Linux.
 
 ## ✦ Features
 
@@ -47,51 +47,39 @@ ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter 
 
 ## 📦 Install
 
-### From Source (Recommended)
+### From PyPI
+
+```bash
+uv tool install blocksd
+blocksd install    # sets up systemd service + udev rules
+```
+
+### From Source
 
 ```bash
 git clone https://github.com/hyperb1iss/blocksd.git
 cd blocksd
 uv sync
-uv run blocksd install    # sets up systemd service + udev rules
+uv run blocksd install
 ```
 
-### Manual
+The `install` command sets up:
+- **udev rules** — proper permissions for ROLI USB devices (requires sudo)
+- **systemd user service** — auto-starts on login with watchdog monitoring
+- **Security hardening** — sandboxed with `ProtectSystem=strict`, `NoNewPrivileges`, etc.
+
+## ⚡ Usage
+
+### Running the Daemon
 
 ```bash
-uv sync
-uv run blocksd run        # run in foreground
-```
-
-## ⚡ Quick Start
-
-```bash
-# Check for connected devices
-blocksd status
-
-# Probe devices for full info (serial, battery, type)
-blocksd status --probe
-
-# Run the daemon (foreground, verbose)
+# Foreground with verbose logging
 blocksd run -v
 
-# Set LED patterns
-blocksd led solid '#ff00ff'
-blocksd led rainbow
-blocksd led gradient ff0000 0000ff --vertical
-blocksd led checkerboard ff0000 00ff00 --size 3
-blocksd led off
-
-# Device configuration
-blocksd config list                    # show all config IDs
-blocksd config get 10                  # read velocity sensitivity
-blocksd config set 10 50               # write velocity sensitivity
-
-# Install as a systemd user service
-sudo blocksd install
-
-# Remove systemd service + udev rules
-sudo blocksd uninstall
+# As a systemd service (after install)
+systemctl --user start blocksd
+systemctl --user status blocksd
+journalctl --user -u blocksd -f
 ```
 
 When running, you'll see devices connect:
@@ -102,6 +90,49 @@ INFO  Master serial: LKBC9PZSOH978HOE
 INFO  Topology: 2 devices, 1 connections
 INFO  ✨ Device connected: lumi_keys_block (LKBC9PZSOH978HOE) — battery 31%
 INFO  ✨ Device connected: lightpad_block_m (LPMJW6SWHSPD8H92) — battery 31%
+```
+
+### Device Status
+
+```bash
+# Quick scan — shows detected MIDI ports
+blocksd status
+
+# Full probe — connects to devices, shows type/serial/battery/version
+blocksd status --probe
+```
+
+### LED Control
+
+Control the 15×15 LED grid on Lightpad blocks:
+
+```bash
+blocksd led solid '#ff00ff'                          # solid color
+blocksd led rainbow                                   # animated rainbow
+blocksd led gradient ff0000 0000ff                    # horizontal gradient
+blocksd led gradient ff0000 0000ff --vertical         # vertical gradient
+blocksd led checkerboard ff0000 00ff00                # 2×2 checkerboard
+blocksd led checkerboard ff0000 00ff00 --size 3       # 3×3 checkerboard
+blocksd led off                                       # lights off
+```
+
+### Device Configuration
+
+Read and write device settings like velocity sensitivity, MIDI channel, scale mode, and more:
+
+```bash
+blocksd config list                    # show all known config IDs
+blocksd config get 10                  # read velocity sensitivity
+blocksd config set 10 50               # write velocity sensitivity
+```
+
+### Service Management
+
+```bash
+blocksd install                        # install systemd service + udev rules
+blocksd install --no-udev              # skip udev rules
+blocksd install --no-enable            # install but don't auto-start
+blocksd uninstall                      # remove everything
 ```
 
 ## 🏗️ Architecture
@@ -179,61 +210,33 @@ Host                                          Device
 
 ## 🧪 Development
 
-### Setup
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development guide.
 
 ```bash
-uv sync                       # install all dependencies
-```
-
-### Testing
-
-```bash
-uv run pytest                  # all tests (275 currently)
-uv run pytest -v               # verbose
-uv run pytest tests/protocol/  # specific module
-```
-
-### Linting & Types
-
-```bash
+uv sync                        # install all dependencies
+uv run pytest                  # run tests (275 currently)
 uv run ruff check .            # lint
-uv run ruff format .           # format
+uv run ruff format --check .   # format check
 uv run ty check                # type check
 ```
-
-### Project Layout
-
-- **Source:** `src/blocksd/`
-- **Tests:** `tests/` (mirrors source structure)
-- **systemd:** `systemd/blocksd.service`, `systemd/99-roli-blocks.rules`
-- **Firmware:** `firmware/default/*.littlefoot` (reference LittleFoot programs)
 
 ## 🗺️ Roadmap
 
 See [VISION.md](VISION.md) for the full vision, use cases, and ideas beyond music.
 
-**Remaining work:**
-
+- [x] **Protocol Core** — 7-bit packing, checksum, SysEx builder/decoder
+- [x] **Device Discovery** — MIDI port scanning, serial number parsing
+- [x] **Topology Management** — multi-device tracking, DNA connections
+- [x] **API Mode Keepalive** — full state machine with correct ping timing
 - [x] **Remote Heap Manager** — ACK tracking, retransmission, heap state sync
-- [x] **LittleFoot Program Upload** — compile/upload BitmapLEDProgram to device
+- [x] **LittleFoot Programs** — bytecode assembler, BitmapLEDProgram upload
 - [x] **CLI LED Commands** — `blocksd led solid #ff00ff`, `blocksd led rainbow`
 - [x] **Touch/Button Events** — normalized callbacks with full velocity data
 - [x] **Config Commands** — read/write device settings via CLI
 - [x] **sd_notify Integration** — Type=notify service with watchdog heartbeat
+- [x] **CI/CD** — GitHub Actions, PyPI publishing, automated releases
 - [ ] **D-Bus Interface** — IPC for external applications
 - [ ] **Hypercolor Integration** — ROLI Blocks as an RGB device backend
-
-## 💜 Contributing
-
-Contributions welcome! The protocol layer is fully implemented and tested — the best areas to contribute are LED control, touch event handling, and the D-Bus interface.
-
-```bash
-# development workflow
-uv sync
-uv run pytest               # make sure tests pass
-uv run ruff check .         # lint clean
-uv run ty check             # types clean
-```
 
 ## ⚖️ License
 
