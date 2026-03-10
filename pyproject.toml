@@ -22,7 +22,6 @@ dependencies = [
     "typer>=0.15",
     "rich>=13.9",
     "pydantic>=2.10",
-    "tomli>=2.2; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
