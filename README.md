@@ -162,7 +162,7 @@ uv sync                       # install all dependencies
 ### Testing
 
 ```bash
-uv run pytest                  # all tests (148 currently)
+uv run pytest                  # all tests (241 currently)
 uv run pytest -v               # verbose
 uv run pytest tests/protocol/  # specific module
 ```
@@ -188,9 +188,9 @@ See [VISION.md](VISION.md) for the full vision, use cases, and ideas beyond musi
 
 **Remaining work:**
 
-- [ ] **Remote Heap Manager** — ACK tracking, retransmission, heap state sync
-- [ ] **LittleFoot Program Upload** — compile/upload BitmapLEDProgram to device
-- [ ] **CLI LED Commands** — `blocksd led solid #ff00ff`, `blocksd led rainbow`
+- [x] **Remote Heap Manager** — ACK tracking, retransmission, heap state sync
+- [x] **LittleFoot Program Upload** — compile/upload BitmapLEDProgram to device
+- [x] **CLI LED Commands** — `blocksd led solid #ff00ff`, `blocksd led rainbow`
 - [ ] **Touch/Button Events** — expose via callback API or D-Bus
 - [ ] **Config Commands** — read/write device settings
 - [ ] **sd_notify Integration** — proper systemd watchdog heartbeat
@@ -216,9 +216,19 @@ uv run ty check             # types clean
 ---
 
 <p align="center">
+  <a href="https://github.com/hyperb1iss/blocksd">
+    <img src="https://img.shields.io/github/stars/hyperb1iss/blocksd?style=social" alt="Star on GitHub">
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://ko-fi.com/hyperb1iss">
+    <img src="https://img.shields.io/badge/Ko--fi-Support%20Development-ff5e5b?logo=ko-fi&logoColor=white" alt="Ko-fi">
+  </a>
+</p>
+
+<p align="center">
   <sub>
     If blocksd keeps your Blocks alive, give us a ⭐ or <a href="https://ko-fi.com/hyperb1iss">support the project</a>
     <br><br>
-    ✦ Built with obsession by <a href="https://hyperbliss.tech"><strong>Hyperbliss</strong></a> ✦
+    ✦ Built with obsession by <a href="https://hyperbliss.tech"><strong>Hyperbliss Technologies</strong></a> ✦
   </sub>
 </p>
