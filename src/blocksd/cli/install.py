@@ -11,8 +11,22 @@ import typer
 
 from blocksd.cli.app import app
 
-_UDEV_RULES_SRC = Path(__file__).resolve().parents[3] / "systemd" / "99-roli-blocks.rules"
 _UDEV_RULES_DEST = Path("/etc/udev/rules.d/99-roli-blocks.rules")
+
+# ROLI USB vendor 0x2AF4 — all known product IDs
+_UDEV_RULES = """\
+# ROLI Blocks devices — allow non-root MIDI access
+# Installed by: blocksd install
+
+SUBSYSTEM=="usb", ATTR{idVendor}=="2af4", ATTR{idProduct}=="0100", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2af4", ATTR{idProduct}=="0200", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2af4", ATTR{idProduct}=="0210", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2af4", ATTR{idProduct}=="0700", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2af4", ATTR{idProduct}=="0900", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2af4", ATTR{idProduct}=="0e00", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2af4", ATTR{idProduct}=="0f00", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2af4", ATTR{idProduct}=="1000", MODE="0666", TAG+="uaccess"
+"""
 _SERVICE_DIR = Path.home() / ".config" / "systemd" / "user"
 _SERVICE_PATH = _SERVICE_DIR / "blocksd.service"
 
@@ -109,16 +123,19 @@ def uninstall() -> None:
 
 def _install_udev() -> None:
     """Install udev rules for ROLI device permissions."""
-    if not _UDEV_RULES_SRC.exists():
-        typer.echo(f"Warning: udev rules not found at {_UDEV_RULES_SRC}", err=True)
-        return
+    import tempfile
 
     typer.echo("Installing udev rules (requires sudo)...")
-    if _run(["cp", str(_UDEV_RULES_SRC), str(_UDEV_RULES_DEST)], sudo=True):
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".rules", delete=False) as f:
+        f.write(_UDEV_RULES)
+        tmp = f.name
+    if _run(["cp", tmp, str(_UDEV_RULES_DEST)], sudo=True):
+        Path(tmp).unlink(missing_ok=True)
         _run(["udevadm", "control", "--reload-rules"], sudo=True)
         _run(["udevadm", "trigger"], sudo=True)
         typer.echo(f"Installed {_UDEV_RULES_DEST}")
     else:
+        Path(tmp).unlink(missing_ok=True)
         typer.echo("Failed to install udev rules", err=True)
 
 
