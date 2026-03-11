@@ -6,13 +6,13 @@ on:
 
 jobs:
   pypi:
-    uses: hyperb1iss/shared-workflows/.github/workflows/python-publish.yml@v1
+    uses: hyperb1iss/shared-workflows/.github/workflows/python-publish.yml@main
     permissions:
       contents: read
       id-token: write
 
   github-release:
-    uses: hyperb1iss/shared-workflows/.github/workflows/github-release.yml@v1
+    uses: hyperb1iss/shared-workflows/.github/workflows/github-release.yml@main
     needs: [pypi]
     permissions:
       contents: write

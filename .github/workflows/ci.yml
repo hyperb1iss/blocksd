@@ -8,7 +8,7 @@ on:
 
 jobs:
   ci:
-    uses: hyperb1iss/shared-workflows/.github/workflows/python-ci.yml@v1
+    uses: hyperb1iss/shared-workflows/.github/workflows/python-ci.yml@main
     with:
       python-version: "3.13"
       system-deps: libasound2-dev
