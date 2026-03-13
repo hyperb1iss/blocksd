@@ -6,9 +6,11 @@ import asyncio
 import contextlib
 import logging
 import signal
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from blocksd import sdnotify
+from blocksd.api.server import ApiServer
 from blocksd.config.schema import DaemonConfig
 from blocksd.logging import setup_logging
 from blocksd.topology.manager import TopologyManager
@@ -31,6 +33,10 @@ async def run_daemon(config: DaemonConfig) -> None:
     manager.on_touch_event.append(_on_touch)
     manager.on_button_event.append(_on_button)
 
+    # Start API server for Hypercolor integration
+    socket_path = Path(config.api_socket) if config.api_socket else None
+    api_server = ApiServer(manager, socket_path=socket_path)
+
     # Graceful shutdown on SIGINT/SIGTERM
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
@@ -41,6 +47,9 @@ async def run_daemon(config: DaemonConfig) -> None:
     manager_task = asyncio.create_task(manager.run(), name="topology-manager")
     watchdog_task = _start_watchdog(stop_event)
 
+    if config.api_enabled:
+        await api_server.start()
+
     sdnotify.ready()
     sdnotify.status("Scanning for ROLI devices")
     log.info("blocksd ready — scanning for ROLI devices")
@@ -48,6 +57,10 @@ async def run_daemon(config: DaemonConfig) -> None:
 
     sdnotify.stopping()
     log.info("Shutting down...")
+
+    if config.api_enabled:
+        await api_server.stop()
+
     manager_task.cancel()
     if watchdog_task:
         watchdog_task.cancel()

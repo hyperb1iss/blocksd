@@ -16,6 +16,10 @@ class DaemonConfig(BaseModel):
     api_ping_timeout: float = 6.0
     verbose: bool = False
 
+    # API server settings
+    api_enabled: bool = True
+    api_socket: str = ""  # empty = default ($XDG_RUNTIME_DIR/blocksd/blocksd.sock)
+
 
 DEFAULT_CONFIG_PATHS = [
     Path("/etc/blocksd/config.toml"),
