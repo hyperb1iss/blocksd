@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import logging
 import os
 import time
@@ -155,7 +156,7 @@ class ApiServer:
             if sub_id is not None:
                 self._broadcaster.unsubscribe(sub_id)
             writer.close()
-            with asyncio.suppress(Exception):
+            with contextlib.suppress(Exception):
                 await writer.wait_closed()
             log.info("Client %d disconnected", client_id)
 

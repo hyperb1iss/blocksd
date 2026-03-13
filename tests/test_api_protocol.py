@@ -22,7 +22,7 @@ class TestBinaryFrame:
     """Binary frame serialization/deserialization."""
 
     def test_frame_size_constant(self) -> None:
-        assert BINARY_FRAME_SIZE == 681
+        assert BINARY_FRAME_SIZE == 685  # 1 magic + 1 type + 8 uid + 675 pixels
         assert PIXEL_DATA_SIZE == 675  # 15 * 15 * 3
 
     def test_roundtrip_solid_red(self) -> None:
@@ -48,13 +48,17 @@ class TestBinaryFrame:
         assert parsed.pixels == pixels
 
     def test_uid_little_endian(self) -> None:
-        frame = BinaryFrame(uid=0x01020304, pixels=b"\x00" * PIXEL_DATA_SIZE)
+        frame = BinaryFrame(uid=0x0102030405060708, pixels=b"\x00" * PIXEL_DATA_SIZE)
         data = frame.to_bytes()
-        # UID bytes at offsets 2-5, little-endian
-        assert data[2] == 0x04
-        assert data[3] == 0x03
-        assert data[4] == 0x02
-        assert data[5] == 0x01
+        # UID bytes at offsets 2-9, u64 little-endian
+        assert data[2] == 0x08
+        assert data[3] == 0x07
+        assert data[4] == 0x06
+        assert data[5] == 0x05
+        assert data[6] == 0x04
+        assert data[7] == 0x03
+        assert data[8] == 0x02
+        assert data[9] == 0x01
 
     def test_parse_too_short(self) -> None:
         with pytest.raises(ValueError, match="too short"):
@@ -75,10 +79,17 @@ class TestBinaryFrame:
         parsed = parse_binary_frame(frame.to_bytes())
         assert parsed.uid == 0
 
-    def test_uid_max_u32(self) -> None:
-        frame = BinaryFrame(uid=0xFFFFFFFF, pixels=b"\x00" * PIXEL_DATA_SIZE)
+    def test_uid_max_u64(self) -> None:
+        frame = BinaryFrame(uid=0xFFFFFFFFFFFFFFFF, pixels=b"\x00" * PIXEL_DATA_SIZE)
         parsed = parse_binary_frame(frame.to_bytes())
-        assert parsed.uid == 0xFFFFFFFF
+        assert parsed.uid == 0xFFFFFFFFFFFFFFFF
+
+    def test_uid_real_roli_value(self) -> None:
+        """ROLI topology UIDs are 64-bit."""
+        uid = 17162900393818307115
+        frame = BinaryFrame(uid=uid, pixels=b"\x00" * PIXEL_DATA_SIZE)
+        parsed = parse_binary_frame(frame.to_bytes())
+        assert parsed.uid == uid
 
 
 class TestJsonProtocol:

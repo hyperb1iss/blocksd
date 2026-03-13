@@ -18,8 +18,8 @@ from typing import Any
 # Binary frame constants
 BINARY_MAGIC = 0xBD
 BINARY_TYPE_FRAME = 0x01
-BINARY_FRAME_SIZE = 681  # 1 magic + 1 type + 4 uid + 675 pixels
-BINARY_HEADER = struct.Struct("<BBL")  # magic, type, uid (little-endian)
+BINARY_FRAME_SIZE = 685  # 1 magic + 1 type + 8 uid + 675 pixels
+BINARY_HEADER = struct.Struct("<BBQ")  # magic, type, uid (u64 little-endian)
 PIXEL_DATA_SIZE = 675  # 15 * 15 * 3 bytes (RGB888)
 
 
@@ -35,7 +35,7 @@ class BinaryFrame:
 
 
 def parse_binary_frame(data: bytes) -> BinaryFrame:
-    """Parse a 681-byte binary frame message.
+    """Parse a 685-byte binary frame message.
 
     Raises ValueError if the data is malformed.
     """
