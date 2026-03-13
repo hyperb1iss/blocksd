@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from blocksd.protocol.constants import BitSize
+from blocksd.device.models import BlockType
+from blocksd.device.registry import heap_size_for_block
+from blocksd.led.bitmap import Color, LEDGrid
+from blocksd.littlefoot.programs import bitmap_led_program, bitmap_led_program_size
+from blocksd.protocol.constants import BitSize, DataChangeCommand
 from blocksd.protocol.packing import Packed7BitReader
 from blocksd.protocol.remote_heap import (
     _COUNTER_MASK,
@@ -22,6 +26,40 @@ def _decode_packet_index(packet: bytes) -> int:
     reader = Packed7BitReader(payload)
     reader.read_bits(BitSize.MESSAGE_TYPE)  # skip message type
     return reader.read_bits(BitSize.PACKET_INDEX)
+
+
+def _decode_end_marker(packet: bytes) -> str:
+    """Decode only enough of the packet to find its terminating command."""
+    payload = packet[6:-2]
+    reader = Packed7BitReader(payload)
+    reader.read_bits(BitSize.MESSAGE_TYPE)
+    reader.read_bits(BitSize.PACKET_INDEX)
+
+    while reader.remaining_bits >= BitSize.DATA_CHANGE_COMMAND:
+        cmd = reader.read_bits(BitSize.DATA_CHANGE_COMMAND)
+        if cmd == DataChangeCommand.END_OF_PACKET:
+            return "end_of_packet"
+        if cmd == DataChangeCommand.END_OF_CHANGES:
+            return "end_of_changes"
+        if cmd == DataChangeCommand.SKIP_BYTES_FEW:
+            reader.read_bits(BitSize.BYTE_COUNT_FEW)
+        elif cmd == DataChangeCommand.SKIP_BYTES_MANY:
+            reader.read_bits(BitSize.BYTE_COUNT_MANY)
+        elif cmd == DataChangeCommand.SET_SEQUENCE_OF_BYTES:
+            while True:
+                reader.read_bits(BitSize.BYTE_VALUE)
+                if not reader.read_bits(BitSize.BYTE_SEQUENCE_CONTINUES):
+                    break
+        elif cmd == DataChangeCommand.SET_FEW_BYTES_WITH_VALUE:
+            reader.read_bits(BitSize.BYTE_COUNT_FEW)
+            reader.read_bits(BitSize.BYTE_VALUE)
+        elif cmd == DataChangeCommand.SET_FEW_BYTES_WITH_LAST_VALUE:
+            reader.read_bits(BitSize.BYTE_COUNT_FEW)
+        elif cmd == DataChangeCommand.SET_MANY_BYTES_WITH_VALUE:
+            reader.read_bits(BitSize.BYTE_COUNT_MANY)
+            reader.read_bits(BitSize.BYTE_VALUE)
+
+    raise AssertionError("packet did not contain a terminating data-change command")
 
 
 # ── Basic State ──────────────────────────────────────────────────────────────
@@ -131,10 +169,10 @@ class TestSendChanges:
 
     def test_blocks_when_in_flight_limit_reached(self):
         # Accumulate multiple in-flight packets until limit is hit
-        heap = RemoteHeap(100)
+        heap = RemoteHeap(512)
         sent = 0
         for i in range(20):
-            heap.set_bytes(0, bytes([i + 1] * 100))
+            heap.set_bytes(0, bytes((i + j) % 256 for j in range(180)))
             p = heap.send_changes(0, now=float(i) * 0.01)
             if p is None:
                 break
@@ -172,6 +210,18 @@ class TestHandleAck:
         heap = RemoteHeap(10)
         assert not heap.handle_ack(42)
 
+    def test_ack_unknown_index_preserves_in_flight(self):
+        heap = RemoteHeap(20)
+        heap.set_bytes(0, b"\x01")
+        heap.send_changes(0, now=0.0)
+        heap.set_bytes(1, b"\x02")
+        heap.send_changes(0, now=0.1)
+
+        assert heap.in_flight_count == 2
+        assert not heap.handle_ack(99)
+        assert heap.in_flight_count == 2
+        assert heap.is_dirty is False
+
     def test_ack_confirms_device_state(self):
         heap = RemoteHeap(10)
         heap.set_bytes(0, b"\xff\xfe")
@@ -196,15 +246,15 @@ class TestHandleAck:
         assert heap.in_flight_count == 1
 
     def test_ack_allows_new_sends(self):
-        heap = RemoteHeap(100)
+        heap = RemoteHeap(512)
         # Fill up in-flight queue
         for i in range(20):
-            heap.set_bytes(0, bytes([i + 1] * 100))
+            heap.set_bytes(0, bytes((i + j) % 256 for j in range(180)))
             if heap.send_changes(0, now=float(i) * 0.01) is None:
                 break
         assert heap.in_flight_bytes >= MAX_IN_FLIGHT_BYTES
         # Blocked
-        heap.set_bytes(0, b"\xfe" * 100)
+        heap.set_bytes(0, bytes((0xFE + j) % 256 for j in range(180)))
         assert heap.send_changes(0, now=1.0) is None
         # ACK all — frees space
         heap.handle_ack(heap.in_flight_count - 1)
@@ -386,3 +436,44 @@ class TestIntegration:
         p = heap.send_changes(0, now=0.0)
         assert p is not None
         assert heap.in_flight_count == 1
+
+    def test_large_led_frame_splits_into_multiple_packets(self):
+        """Realistic 15x15 RGB565 data should serialize without overflowing."""
+        heap = RemoteHeap(heap_size_for_block(BlockType.LIGHTPAD))
+
+        # Seed the device with the LED program first.
+        heap.set_bytes(0, bitmap_led_program())
+        program_packet = heap.send_changes(0, now=0.0)
+        assert program_packet is not None
+        assert _decode_end_marker(program_packet) == "end_of_changes"
+        assert heap.handle_ack(_decode_packet_index(program_packet))
+
+        grid = LEDGrid()
+        for y in range(15):
+            for x in range(15):
+                grid.set_pixel(
+                    x,
+                    y,
+                    Color(
+                        r=(x * 17) & 0xFF,
+                        g=(y * 19) & 0xFF,
+                        b=((x * 11) + (y * 7)) & 0xFF,
+                    ),
+                )
+
+        heap.set_bytes(bitmap_led_program_size(), grid.heap_data)
+
+        packets: list[bytes] = []
+        now = 1.0
+        while heap.is_dirty:
+            packet = heap.send_changes(0, now=now)
+            assert packet is not None
+            packets.append(packet)
+            assert len(packet) <= 200
+            assert heap.handle_ack(_decode_packet_index(packet))
+            now += 0.01
+            assert len(packets) < 10
+
+        assert len(packets) > 1
+        assert _decode_end_marker(packets[0]) == "end_of_packet"
+        assert _decode_end_marker(packets[-1]) == "end_of_changes"

@@ -20,7 +20,7 @@ from blocksd.protocol.builder import HostPacketBuilder
 from blocksd.protocol.data_change import (
     DataChangeEncoder,
     compute_diff,
-    encode_regions,
+    encode_regions_limited,
 )
 
 # Unknown byte sentinel — device state not yet confirmed
@@ -32,8 +32,11 @@ RETRANSMIT_TIMEOUT: float = 0.250
 # Max total payload bytes allowed in-flight before blocking new sends
 MAX_IN_FLIGHT_BYTES: int = 200
 
-# Max SysEx packet payload for data change messages
-MAX_PACKET_BYTES: int = 200
+# Max payload bytes available to the packed writer.
+# HostPacketBuilder writes the 6-byte SysEx header outside the writer, and
+# Packed7BitWriter reserves room for checksum + F7 internally, so 194 bytes
+# here keeps the total packet length within the upstream 200-byte budget.
+MAX_PACKET_BYTES: int = 194
 
 # 10-bit packet counter mask (ACKs reference this range)
 _COUNTER_MASK: int = 0x3FF
@@ -129,13 +132,16 @@ class RemoteHeap:
         if not regions:
             return None
 
+        result_state = bytearray(expected)
         builder = HostPacketBuilder(max_bytes=MAX_PACKET_BYTES)
         builder.write_sysex_header(device_index)
         builder.begin_data_changes(self._packet_index)
 
         encoder = DataChangeEncoder(builder.writer)
-        encode_regions(encoder, regions, self._target)
-        encoder.end(is_last=True)
+        is_complete = encode_regions_limited(encoder, regions, self._target, result_state)
+        if result_state == expected:
+            return None
+        encoder.end(is_last=is_complete)
 
         packet = builder.build()
         if now is None:
@@ -145,8 +151,8 @@ class RemoteHeap:
             _InFlightMessage(
                 packet_index=self._packet_index,
                 packet_data=packet,
-                result_state=bytearray(self._target),
-                payload_size=len(packet),
+                result_state=result_state,
+                payload_size=max(len(packet) - 8, 0),
                 last_send_time=now,
             )
         )
@@ -159,6 +165,9 @@ class RemoteHeap:
         Updates confirmed device state to match the ACK'd message's
         result state. Returns True if the ACK matched an in-flight message.
         """
+        if not any(msg.packet_index == packet_index for msg in self._messages):
+            return False
+
         found = False
         while self._messages:
             msg = self._messages[0]

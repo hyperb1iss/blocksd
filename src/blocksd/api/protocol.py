@@ -39,8 +39,8 @@ def parse_binary_frame(data: bytes) -> BinaryFrame:
 
     Raises ValueError if the data is malformed.
     """
-    if len(data) < BINARY_FRAME_SIZE:
-        raise ValueError(f"binary frame too short: {len(data)} < {BINARY_FRAME_SIZE}")
+    if len(data) != BINARY_FRAME_SIZE:
+        raise ValueError(f"binary frame wrong size: {len(data)} != {BINARY_FRAME_SIZE}")
 
     magic, msg_type, uid = BINARY_HEADER.unpack_from(data)
     if magic != BINARY_MAGIC:

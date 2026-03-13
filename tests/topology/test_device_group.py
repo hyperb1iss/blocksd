@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
+from blocksd.led.bitmap import RED, LEDGrid
 from blocksd.protocol.checksum import calculate_checksum
 from blocksd.protocol.constants import (
     PROTOCOL_VERSION,
@@ -219,6 +220,24 @@ class TestACKHandling:
         group._process_message(ack_pkt)
 
         assert len(added) == 1
+
+    def test_set_led_data_flushes_immediately(self) -> None:
+        conn = MockMidiConnection()
+        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group.state = GroupState.REQUESTING_TOPOLOGY
+
+        topology_pkt = _build_topology_packet(["LPB0000000000000"])
+        group._process_message(topology_pkt)
+
+        ack_pkt = _build_ack_packet(0)
+        group._process_message(ack_pkt)
+
+        grid = LEDGrid()
+        grid.fill(RED)
+
+        conn.sent.clear()
+        assert group.set_led_data(next(iter(group._devices)), grid.heap_data)
+        assert conn.sent, "expected LED data write to be sent immediately"
 
 
 class TestAPIActivation:

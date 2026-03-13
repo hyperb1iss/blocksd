@@ -20,6 +20,7 @@
   <a href="#-features">Features</a> •
   <a href="#-install">Install</a> •
   <a href="#-usage">Usage</a> •
+  <a href="#-external-api">External API</a> •
   <a href="#-architecture">Architecture</a> •
   <a href="#-supported-devices">Devices</a> •
   <a href="#-development">Development</a> •
@@ -135,6 +136,26 @@ blocksd install --no-enable            # install but don't auto-start
 blocksd uninstall                      # remove everything
 ```
 
+## 🔌 External API
+
+`blocksd` exposes a Unix socket API for external clients like Hypercolor.
+
+- Socket path: `$XDG_RUNTIME_DIR/blocksd/blocksd.sock`
+- Fallback path: `/tmp/blocksd/blocksd.sock`
+- One socket supports both control messages and high-rate LED frame writes
+
+The quick rules:
+
+- Use `discover` first to get the device `uid`
+- Use the fixed-size binary frame protocol for animation and streaming
+- Treat `frame_ack.accepted=false` or binary ack `0x00` as retryable during the
+  first moments after device discovery while API mode finishes coming up
+- Prefer a separate subscription socket if you also want events; outbound NDJSON
+  events and 1-byte binary frame acks share the same connection
+
+See [docs/API.md](docs/API.md) for the full protocol reference, examples, and
+Hypercolor-oriented integration notes.
+
 ## 🏗️ Architecture
 
 ```
@@ -214,7 +235,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development guide.
 
 ```bash
 uv sync                        # install all dependencies
-uv run pytest                  # run tests (275 currently)
+uv run pytest                  # run tests
 uv run ruff check .            # lint
 uv run ruff format --check .   # format check
 uv run ty check                # type check

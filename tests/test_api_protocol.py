@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from base64 import b64encode
+from typing import Any, cast
 
 import pytest
 
@@ -16,6 +18,8 @@ from blocksd.api.protocol import (
     encode_json,
     parse_binary_frame,
 )
+from blocksd.api.server import ApiServer
+from blocksd.device.models import BlockType, DeviceInfo
 
 
 class TestBinaryFrame:
@@ -61,8 +65,13 @@ class TestBinaryFrame:
         assert data[9] == 0x01
 
     def test_parse_too_short(self) -> None:
-        with pytest.raises(ValueError, match="too short"):
+        with pytest.raises(ValueError, match="wrong size"):
             parse_binary_frame(b"\xBD\x01\x00\x00")
+
+    def test_parse_too_long(self) -> None:
+        data = bytes([BINARY_MAGIC, BINARY_TYPE_FRAME]) + b"\x00" * (BINARY_FRAME_SIZE - 2 + 1)
+        with pytest.raises(ValueError, match="wrong size"):
+            parse_binary_frame(data)
 
     def test_parse_bad_magic(self) -> None:
         data = b"\xFF" + b"\x01" + b"\x00" * (BINARY_FRAME_SIZE - 2)
@@ -131,3 +140,54 @@ class TestJsonProtocol:
         }
         decoded = decode_json(encode_json(msg))
         assert decoded["device"]["uid"] == 12345
+
+
+class _DummyManager:
+    def __init__(self) -> None:
+        self.device = DeviceInfo(
+            uid=42,
+            topology_index=0,
+            serial="LPB1234567890AB",
+            block_type=BlockType.LIGHTPAD,
+        )
+        self.devices = [self.device]
+        self.frames: list[tuple[int, bytes]] = []
+
+    def find_device(self, uid: int) -> DeviceInfo | None:
+        return self.device if uid == self.device.uid else None
+
+    def set_led_data(self, uid: int, pixel_data: bytes | bytearray) -> bool:
+        self.frames.append((uid, bytes(pixel_data)))
+        return True
+
+
+class TestApiServerFrameValidation:
+    def test_json_frame_requires_exact_pixel_size(self) -> None:
+        manager = _DummyManager()
+        server = ApiServer(cast("Any", manager))
+
+        response = server._handle_json_frame(
+            {
+                "type": "frame",
+                "uid": 42,
+                "pixels": b64encode(b"\x00" * (PIXEL_DATA_SIZE + 1)).decode(),
+            }
+        )
+
+        assert response == {"type": "frame_ack", "uid": 42, "accepted": False}
+        assert manager.frames == []
+
+    def test_json_frame_accepts_exact_pixel_size(self) -> None:
+        manager = _DummyManager()
+        server = ApiServer(cast("Any", manager))
+
+        response = server._handle_json_frame(
+            {
+                "type": "frame",
+                "uid": 42,
+                "pixels": b64encode(b"\x00" * PIXEL_DATA_SIZE).decode(),
+            }
+        )
+
+        assert response == {"type": "frame_ack", "uid": 42, "accepted": True}
+        assert len(manager.frames) == 1

@@ -311,6 +311,7 @@ class DeviceGroup:
         if offset + len(pixel_data) > heap.size:
             return False
         heap.set_bytes(offset, pixel_data)
+        self._flush_heap(uid, heap, time.monotonic())
         return True
 
     def _load_led_program(self, uid: int) -> None:
@@ -332,19 +333,27 @@ class DeviceGroup:
     def _flush_heaps(self, now: float) -> None:
         """Send pending heap changes and retransmit timed-out packets."""
         for uid, heap in self._heaps.items():
-            dev = self._devices.get(uid)
-            if dev is None:
-                continue
+            self._flush_heap(uid, heap, now)
 
-            # Retransmit timed-out packets
-            retransmit = heap.get_retransmit(now)
-            if retransmit is not None:
-                self.conn.send(retransmit)
+    def _flush_heap(self, uid: int, heap: RemoteHeap, now: float) -> None:
+        """Flush one device heap immediately.
 
-            # Send new changes if dirty
+        send_changes() advances the optimistic state on each packet, so loop
+        until the heap is clean or the in-flight budget blocks additional sends.
+        """
+        dev = self._devices.get(uid)
+        if dev is None:
+            return
+
+        retransmit = heap.get_retransmit(now)
+        if retransmit is not None:
+            self.conn.send(retransmit)
+
+        while True:
             packet = heap.send_changes(dev.topology_index, now)
-            if packet is not None:
-                self.conn.send(packet)
+            if packet is None:
+                break
+            self.conn.send(packet)
 
     # ── Config management ────────────────────────────────────────────────
 

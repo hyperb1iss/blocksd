@@ -51,6 +51,11 @@ class DataChangeEncoder:
         self._writer = writer
         self._last_value: int | None = None
 
+    @property
+    def last_value(self) -> int | None:
+        """Last byte value written in this packet, if any."""
+        return self._last_value
+
     def skip_bytes(self, count: int) -> None:
         """Emit skip commands for unchanged heap bytes.
 
@@ -203,6 +208,36 @@ def encode_regions(
             _encode_set_region(encoder, target, region.offset, region.count)
 
 
+def encode_regions_limited(
+    encoder: DataChangeEncoder,
+    regions: list[DiffRegion],
+    target: bytes | bytearray,
+    result_state: bytearray,
+) -> bool:
+    """Encode as many diff regions as fit in the current packet budget.
+
+    Updates `result_state` with only the bytes that were successfully encoded.
+    Returns True when all regions fit, False when the packet filled before the
+    entire diff could be serialized.
+    """
+    for region in regions:
+        if region.is_skip:
+            encoder.skip_bytes(region.count)
+            continue
+
+        encoded = _encode_set_region_limited(
+            encoder,
+            target,
+            result_state,
+            region.offset,
+            region.count,
+        )
+        if encoded < region.count:
+            return False
+
+    return True
+
+
 def _encode_set_region(
     encoder: DataChangeEncoder,
     target: bytes | bytearray,
@@ -239,6 +274,99 @@ def _encode_set_region(
                 j += 1
             encoder.set_sequence(data[seq_start:j])
             i = j
+
+
+_END_BITS = BitSize.DATA_CHANGE_COMMAND
+_SET_SEQUENCE_BASE_BITS = BitSize.DATA_CHANGE_COMMAND
+_SET_SEQUENCE_BYTE_BITS = BitSize.BYTE_VALUE + BitSize.BYTE_SEQUENCE_CONTINUES
+_SET_FEW_BITS = BitSize.DATA_CHANGE_COMMAND + BitSize.BYTE_COUNT_FEW + BitSize.BYTE_VALUE
+_SET_FEW_LAST_BITS = BitSize.DATA_CHANGE_COMMAND + BitSize.BYTE_COUNT_FEW
+_SET_MANY_BITS = BitSize.DATA_CHANGE_COMMAND + BitSize.BYTE_COUNT_MANY + BitSize.BYTE_VALUE
+
+
+def _encode_set_region_limited(
+    encoder: DataChangeEncoder,
+    target: bytes | bytearray,
+    result_state: bytearray,
+    offset: int,
+    count: int,
+) -> int:
+    """Encode a set region prefix that fits in the packet budget.
+
+    Returns the number of heap bytes successfully encoded.
+    """
+    data = target[offset : offset + count]
+    i = 0
+
+    while i < len(data):
+        run_len = 1
+        while i + run_len < len(data) and data[i + run_len] == data[i]:
+            run_len += 1
+
+        remaining = len(data) - i
+        if run_len >= _MIN_RUN_LENGTH or remaining <= _MIN_RUN_LENGTH:
+            chunk_len = _max_repeated_chunk(encoder, data[i], run_len)
+            if chunk_len == 0:
+                break
+
+            encoder.set_repeated(data[i], chunk_len)
+            result_state[offset + i : offset + i + chunk_len] = data[i : i + chunk_len]
+            i += chunk_len
+            continue
+
+        seq_start = i
+        j = i + 1
+        while j < len(data):
+            if j + 2 < len(data) and data[j] == data[j + 1] == data[j + 2]:
+                break
+            j += 1
+
+        chunk_len = _max_sequence_chunk(encoder, j - seq_start)
+        if chunk_len == 0:
+            break
+
+        encoder.set_sequence(data[seq_start : seq_start + chunk_len])
+        result_state[offset + seq_start : offset + seq_start + chunk_len] = (
+            data[seq_start : seq_start + chunk_len]
+        )
+        i += chunk_len
+
+    return i
+
+
+def _max_repeated_chunk(
+    encoder: DataChangeEncoder,
+    value: int,
+    count: int,
+) -> int:
+    writer = encoder._writer
+
+    if count > _FEW_MAX and writer.has_capacity(_SET_MANY_BITS + _END_BITS):
+        return min(count, _MANY_MAX)
+
+    if value == encoder.last_value and writer.has_capacity(_SET_FEW_LAST_BITS + _END_BITS):
+        return min(count, _FEW_MAX)
+
+    if writer.has_capacity(_SET_FEW_BITS + _END_BITS):
+        return min(count, _FEW_MAX)
+
+    return 0
+
+
+def _max_sequence_chunk(encoder: DataChangeEncoder, count: int) -> int:
+    writer = encoder._writer
+    low = 0
+    high = count
+
+    while low < high:
+        mid = (low + high + 1) // 2
+        bits = _SET_SEQUENCE_BASE_BITS + (mid * _SET_SEQUENCE_BYTE_BITS) + _END_BITS
+        if writer.has_capacity(bits):
+            low = mid
+        else:
+            high = mid - 1
+
+    return low
 
 
 # ── Convenience Builder ───────────────────────────────────────────────────────

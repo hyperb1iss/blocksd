@@ -263,7 +263,7 @@ class ApiServer:
 
     def _write_rgb888_frame(self, uid: int, pixels: bytes) -> bool:
         """Convert RGB888 frame to RGB565 and write to device heap."""
-        if len(pixels) < PIXEL_DATA_SIZE:
+        if len(pixels) != PIXEL_DATA_SIZE:
             return False
 
         device = self._manager.find_device(uid)
