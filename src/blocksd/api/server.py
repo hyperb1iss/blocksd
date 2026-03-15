@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from blocksd.api.events import EventBroadcaster
+from blocksd.api.events import VALID_EVENTS, EventBroadcaster
 from blocksd.api.protocol import (
     BINARY_FRAME_SIZE,
     BINARY_MAGIC,
@@ -198,11 +198,11 @@ class ApiServer:
             return self._handle_brightness(msg), None
 
         if msg_type == "subscribe":
-            events = set(msg.get("events", []))
-            sub_id = self._broadcaster.subscribe(event_queue, events)
+            valid_events = {event for event in msg.get("events", []) if event in VALID_EVENTS}
+            sub_id = self._broadcaster.subscribe(event_queue, valid_events)
             if current_sub_id is not None:
                 self._broadcaster.unsubscribe(current_sub_id)
-            return {"type": "subscribed", "events": sorted(events)}, sub_id
+            return {"type": "subscribed", "events": sorted(valid_events)}, sub_id
 
         return {"type": "error", "message": f"unknown type: {msg_type}"}, None
 
@@ -286,6 +286,7 @@ class ApiServer:
             x = i % 15
             y = i // 15
             from blocksd.led.bitmap import Color
+
             grid.set_pixel(x, y, Color(r, g, b))
 
         return self._manager.set_led_data(uid, grid.heap_data)

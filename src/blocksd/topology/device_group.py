@@ -7,6 +7,7 @@ Handles: topology request → API mode activation → periodic ping → timeout.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import time
 from dataclasses import dataclass
@@ -14,7 +15,6 @@ from enum import StrEnum, auto
 from typing import TYPE_CHECKING
 
 from blocksd.device.models import (
-    BlockType,
     ButtonEvent,
     ConfigValue,
     DeviceConnection,
@@ -22,7 +22,11 @@ from blocksd.device.models import (
     Topology,
     TouchEvent,
 )
-from blocksd.device.registry import block_type_from_serial, heap_size_for_block
+from blocksd.device.registry import (
+    block_type_from_serial,
+    heap_size_for_block,
+    supports_bitmap_led_program,
+)
 from blocksd.littlefoot.programs import bitmap_led_program, bitmap_led_program_size
 from blocksd.protocol.builder import (
     build_begin_api_mode,
@@ -302,10 +306,11 @@ class DeviceGroup:
 
         The data is written at the BitmapLEDProgram offset (after the program
         bytecode). Returns True if the write was accepted, False if the device
-        has no heap or isn't a LED-capable block.
+        has no heap or doesn't expose the upstream bitmap LED grid surface.
         """
+        dev = self._devices.get(uid)
         heap = self._heaps.get(uid)
-        if heap is None:
+        if dev is None or heap is None or not supports_bitmap_led_program(dev.block_type):
             return False
         offset = bitmap_led_program_size()
         if offset + len(pixel_data) > heap.size:
@@ -315,16 +320,12 @@ class DeviceGroup:
         return True
 
     def _load_led_program(self, uid: int) -> None:
-        """Load BitmapLEDProgram into a device's heap for LED control."""
+        """Load BitmapLEDProgram into a device's heap for bitmap LED control."""
         dev = self._devices.get(uid)
         heap = self._heaps.get(uid)
         if dev is None or heap is None:
             return
-        if dev.block_type not in (
-            BlockType.LIGHTPAD,
-            BlockType.LIGHTPAD_M,
-            BlockType.LUMI_KEYS,
-        ):
+        if not supports_bitmap_led_program(dev.block_type):
             return
         program = bitmap_led_program()
         heap.set_bytes(0, program)
@@ -385,8 +386,13 @@ class DeviceGroup:
     # ── Device management ─────────────────────────────────────────────────
 
     def _uid_from_serial(self, serial: str) -> int:
-        """Generate a stable UID from serial number (hash)."""
-        return hash(serial) & 0xFFFFFFFFFFFFFFFF
+        """Generate a deterministic 64-bit UID from the device serial."""
+        digest = hashlib.blake2b(
+            serial.encode("utf-8"),
+            digest_size=8,
+            person=b"blocksd",
+        ).digest()
+        return int.from_bytes(digest, "little")
 
     def _uid_from_index(self, topology_index: int) -> int:
         """Look up device UID by topology index.
@@ -510,8 +516,8 @@ class DeviceGroup:
         uid = self._uid_from_index(device_index)
         if uid:
             self._update_api_ping(uid)
-            if heap := self._heaps.get(uid):
-                heap.handle_ack(counter)
+            if (heap := self._heaps.get(uid)) and heap.handle_ack(counter):
+                self._flush_heap(uid, heap, time.monotonic())
 
     def on_firmware_update_ack(self, device_index: int, code: int, detail: int) -> None:
         uid = self._uid_from_index(device_index)

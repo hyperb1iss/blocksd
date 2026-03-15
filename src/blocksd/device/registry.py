@@ -53,3 +53,15 @@ def heap_size_for_block(block_type: BlockType) -> int:
     if block_type in (BlockType.LIVE, BlockType.LOOP, BlockType.DEV_CTRL, BlockType.TOUCH):
         return CONTROL_BLOCK_PROGRAM_HEAP_SIZE
     return PAD_BLOCK_PROGRAM_HEAP_SIZE
+
+
+def bitmap_grid_dimensions(block_type: BlockType) -> tuple[int, int]:
+    """Return the upstream LEDGrid dimensions for bitmap-addressable devices."""
+    if block_type in (BlockType.LIGHTPAD, BlockType.LIGHTPAD_M):
+        return (15, 15)
+    return (0, 0)
+
+
+def supports_bitmap_led_program(block_type: BlockType) -> bool:
+    """Whether the device exposes an upstream LEDGrid-style bitmap surface."""
+    return bitmap_grid_dimensions(block_type) != (0, 0)

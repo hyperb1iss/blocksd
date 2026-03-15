@@ -194,8 +194,8 @@ class TestDeviceSerialization:
         d = _device_to_dict(dev)
         assert d["uid"] == 99999
         assert d["block_type"] == "lumi_keys"
-        assert d["grid_width"] == 15
-        assert d["grid_height"] == 15
+        assert d["grid_width"] == 0
+        assert d["grid_height"] == 0
         assert d["battery_level"] == 50
         assert d["battery_charging"] is True
         assert d["firmware_version"] == "1.2.3"

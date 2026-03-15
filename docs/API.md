@@ -31,9 +31,11 @@ For robust integrations:
 
 1. Open a control socket.
 2. Send `discover` and pick the target device `uid`.
-3. For LED animation, use the binary frame path instead of JSON `frame`.
-4. Retry when a frame is rejected immediately after discovery.
-5. If you also need events, open a second socket just for `subscribe`.
+3. Only use the frame stream for devices advertising nonzero `grid_width` and
+   `grid_height`.
+4. For LED animation, use the binary frame path instead of JSON `frame`.
+5. Retry when a frame is rejected immediately after discovery.
+6. If you also need events, open a second socket just for `subscribe`.
 
 Why split sockets:
 
@@ -55,11 +57,21 @@ fully completed:
 
 Practical rule: keep writing frames only after you get an accepted ack.
 Early frame rejections are normal during initial connection and should be
-treated as retryable, not fatal.
+treated as retryable, not fatal. Once a device is live, the daemon coalesces
+new frames into the latest target state instead of returning a transport-level
+"busy" response when the device-side heap writer is saturated.
+
+Capability rule: the daemon only accepts bitmap frame writes for devices that
+expose a bitmap LED grid. In the current upstream-compatible model that means
+`lightpad` and `lightpad_m`. Devices such as `lumi_keys`, `seaboard`, and the
+control blocks are discoverable, but they advertise `grid_width = 0` and
+`grid_height = 0`, and frame writes to them will be rejected.
 
 ## Binary LED Frames
 
 Use this for streaming, animations, and anything latency-sensitive.
+
+Only send these to devices with nonzero `grid_width` / `grid_height`.
 
 ### Frame Layout
 
@@ -86,8 +98,9 @@ Each binary frame write receives exactly one byte back:
 - `0x01`: accepted
 - `0x00`: rejected
 
-Treat `0x00` as retryable when a device has just appeared, and as a real error
-when it persists after discovery has settled.
+`0x00` means the daemon rejected the write because the device was unavailable,
+the `uid` was unknown, or the payload was invalid. Treat early `0x00` results
+as retryable while the device is still coming up.
 
 ### Binary Example
 
@@ -165,8 +178,12 @@ Notes:
 
 - `uid` is the same value used in binary frames
 - `grid_width` / `grid_height` describe the exposed LED/touch surface
+- `grid_width = 0` and `grid_height = 0` means the device does not expose a
+  bitmap LED frame surface through this API
 - discovery means the device is present in topology, not necessarily that the
   first frame will already be accepted
+- the `uid` is a deterministic 64-bit identifier derived from the device
+  serial, so clients can cache it across daemon restarts
 
 ### `frame`
 

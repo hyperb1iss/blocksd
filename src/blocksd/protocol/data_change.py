@@ -326,9 +326,9 @@ def _encode_set_region_limited(
             break
 
         encoder.set_sequence(data[seq_start : seq_start + chunk_len])
-        result_state[offset + seq_start : offset + seq_start + chunk_len] = (
-            data[seq_start : seq_start + chunk_len]
-        )
+        result_state[offset + seq_start : offset + seq_start + chunk_len] = data[
+            seq_start : seq_start + chunk_len
+        ]
         i += chunk_len
 
     return i

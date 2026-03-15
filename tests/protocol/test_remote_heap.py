@@ -210,7 +210,7 @@ class TestHandleAck:
         heap = RemoteHeap(10)
         assert not heap.handle_ack(42)
 
-    def test_ack_unknown_index_preserves_in_flight(self):
+    def test_ack_unknown_index_resets_device_state(self):
         heap = RemoteHeap(20)
         heap.set_bytes(0, b"\x01")
         heap.send_changes(0, now=0.0)
@@ -219,8 +219,16 @@ class TestHandleAck:
 
         assert heap.in_flight_count == 2
         assert not heap.handle_ack(99)
-        assert heap.in_flight_count == 2
-        assert heap.is_dirty is False
+        assert heap.in_flight_count == 0
+        assert heap.is_dirty is True
+
+    def test_duplicate_ack_is_ignored(self):
+        heap = RemoteHeap(10)
+        heap.set_bytes(0, b"\xff")
+        heap.send_changes(0, now=0.0)
+
+        assert heap.handle_ack(0)
+        assert not heap.handle_ack(0)
 
     def test_ack_confirms_device_state(self):
         heap = RemoteHeap(10)
@@ -248,19 +256,32 @@ class TestHandleAck:
     def test_ack_allows_new_sends(self):
         heap = RemoteHeap(512)
         # Fill up in-flight queue
+        sent_packet_indexes: list[int] = []
         for i in range(20):
             heap.set_bytes(0, bytes((i + j) % 256 for j in range(180)))
-            if heap.send_changes(0, now=float(i) * 0.01) is None:
+            packet = heap.send_changes(0, now=float(i) * 0.01)
+            if packet is None:
                 break
+            sent_packet_indexes.append(_decode_packet_index(packet))
         assert heap.in_flight_bytes >= MAX_IN_FLIGHT_BYTES
         # Blocked
         heap.set_bytes(0, bytes((0xFE + j) % 256 for j in range(180)))
         assert heap.send_changes(0, now=1.0) is None
         # ACK all — frees space
-        heap.handle_ack(heap.in_flight_count - 1)
+        heap.handle_ack(sent_packet_indexes[-1])
         assert heap.in_flight_bytes == 0
         p = heap.send_changes(0, now=2.0)
         assert p is not None
+
+    def test_ack_seeds_next_packet_index_when_queue_empty(self):
+        heap = RemoteHeap(10)
+
+        assert not heap.handle_ack(41)
+
+        heap.set_bytes(0, b"\xff")
+        packet = heap.send_changes(0, now=0.0)
+        assert packet is not None
+        assert _decode_packet_index(packet) == 42
 
 
 # ── Retransmission ───────────────────────────────────────────────────────────
@@ -304,8 +325,7 @@ class TestRetransmit:
 class TestCounterWrapping:
     def test_wraps_at_1023(self):
         heap = RemoteHeap(10)
-        # Manually set counter near wrap point
-        heap._packet_index = _COUNTER_MASK  # 1023
+        heap.handle_ack(_COUNTER_MASK - 1)
         heap.set_bytes(0, b"\xff")
         p = heap.send_changes(0, now=0.0)
         assert p is not None
@@ -314,7 +334,7 @@ class TestCounterWrapping:
 
     def test_ack_after_wrap(self):
         heap = RemoteHeap(10)
-        heap._packet_index = _COUNTER_MASK
+        heap.handle_ack(_COUNTER_MASK - 1)
         heap.set_bytes(0, b"\xff")
         heap.send_changes(0, now=0.0)
         assert heap.handle_ack(1023)

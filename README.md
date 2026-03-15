@@ -40,7 +40,7 @@ ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter 
 | 🔌 **API Mode Keepalive** | Periodic pings prevent the 5-second device timeout that kills API mode |
 | 🏗️ **Topology Management** | Auto-discovers devices over USB, tracks DNA-connected blocks through master |
 | 🎭 **Full State Machine** | Serial → topology → API activation → ping loop, matching the C++ reference |
-| 💡 **LED Control** | RGB565 bitmap grid, CLI patterns (solid, gradient, rainbow, checkerboard) |
+| 💡 **LED Control** | Lightpad / Lightpad M RGB565 bitmap grid, CLI patterns (solid, gradient, rainbow, checkerboard) |
 | 👆 **Touch & Button Events** | Normalized touch data (x/y/z/velocity) and button callbacks |
 | ⚙️ **Device Config** | Read/write device settings (sensitivity, MIDI channel, scale, etc.) |
 | 🔊 **DAW Friendly** | ALSA multi-client — blocksd and your DAW share MIDI without conflict |
@@ -105,7 +105,7 @@ blocksd status --probe
 
 ### LED Control
 
-Control the 15×15 LED grid on Lightpad blocks:
+Control the 15×15 LED grid on Lightpad Block and Lightpad Block M:
 
 ```bash
 blocksd led solid '#ff00ff'                          # solid color
@@ -147,9 +147,14 @@ blocksd uninstall                      # remove everything
 The quick rules:
 
 - Use `discover` first to get the device `uid`
+- Only stream frames to devices advertising nonzero `grid_width` and
+  `grid_height` in discovery
 - Use the fixed-size binary frame protocol for animation and streaming
-- Treat `frame_ack.accepted=false` or binary ack `0x00` as retryable during the
-  first moments after device discovery while API mode finishes coming up
+- Treat `frame_ack.accepted=false` or binary ack `0x00` as a rejected write:
+  this usually means the device is not ready yet, the `uid` is gone, or the
+  payload was malformed
+- Once a device is live, frame writes are coalesced daemon-side to the latest
+  target state instead of surfacing host-visible “busy” backpressure
 - Prefer a separate subscription socket if you also want events; outbound NDJSON
   events and 1-byte binary frame acks share the same connection
 
@@ -228,6 +233,10 @@ Host                                          Device
 | Developer Control Block | — | `DCB` | 🔲 Untested |
 | Touch Block | — | `TCB` | 🔲 Untested |
 | Seaboard RISE 25/49 | `0x0200` / `0x0210` | — | 🔲 Untested |
+
+Bitmap LED streaming is currently exposed for Lightpad Block / Lightpad Block M
+only. Other devices are still discoverable and supported by the topology/API
+state machine, but they do not advertise a bitmap frame surface.
 
 ## 🧪 Development
 

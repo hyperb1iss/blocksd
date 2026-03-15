@@ -6,6 +6,8 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
+from blocksd.device.registry import bitmap_grid_dimensions
+
 if TYPE_CHECKING:
     from blocksd.device.models import ButtonEvent, DeviceInfo, TouchEvent
 
@@ -113,6 +115,7 @@ class _Subscriber:
 
 def _device_to_dict(dev: DeviceInfo) -> dict[str, Any]:
     """Serialize DeviceInfo to the API wire format."""
+    grid_width, grid_height = bitmap_grid_dimensions(dev.block_type)
     return {
         "uid": dev.uid,
         "serial": dev.serial,
@@ -120,8 +123,8 @@ def _device_to_dict(dev: DeviceInfo) -> dict[str, Any]:
         "name": dev.name or dev.block_type.value,
         "battery_level": dev.battery_level,
         "battery_charging": dev.battery_charging,
-        "grid_width": 15,
-        "grid_height": 15,
+        "grid_width": grid_width,
+        "grid_height": grid_height,
         "firmware_version": dev.version or None,
     }
 

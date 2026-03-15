@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from blocksd.led.bitmap import RED, LEDGrid
+from blocksd.led.bitmap import BLUE, RED, LEDGrid
 from blocksd.protocol.checksum import calculate_checksum
 from blocksd.protocol.constants import (
     PROTOCOL_VERSION,
@@ -14,7 +14,7 @@ from blocksd.protocol.constants import (
     BitSize,
     MessageFromDevice,
 )
-from blocksd.protocol.packing import Packed7BitWriter
+from blocksd.protocol.packing import Packed7BitReader, Packed7BitWriter
 from blocksd.topology.device_group import (
     DeviceGroup,
     GroupState,
@@ -115,6 +115,14 @@ def _build_ack_packet(device_index: int, counter: int = 1) -> bytes:
     return ROLI_SYSEX_HEADER + bytes([device_index | 0x40]) + payload + bytes([checksum, 0xF7])
 
 
+def _decode_packet_index(packet: bytes) -> int:
+    """Extract the SharedDataChange packet index from a host packet."""
+    payload = packet[6:-2]
+    reader = Packed7BitReader(payload)
+    reader.read_bits(BitSize.MESSAGE_TYPE)
+    return reader.read_bits(BitSize.PACKET_INDEX)
+
+
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 
@@ -146,6 +154,15 @@ class TestSerialHandling:
 
         assert group.master_serial == "LPB12345678ABCDE"
         assert group.state == GroupState.REQUESTING_TOPOLOGY
+
+    def test_uid_from_serial_is_deterministic(self) -> None:
+        conn = MockMidiConnection()
+        group = DeviceGroup(conn)  # type: ignore[arg-type]
+
+        uid = group._uid_from_serial("LPB12345678ABCDE")
+
+        assert uid == 15_574_837_184_041_537_129
+        assert uid == group._uid_from_serial("LPB12345678ABCDE")
 
 
 class TestTopologyHandling:
@@ -238,6 +255,51 @@ class TestACKHandling:
         conn.sent.clear()
         assert group.set_led_data(next(iter(group._devices)), grid.heap_data)
         assert conn.sent, "expected LED data write to be sent immediately"
+
+    def test_set_led_data_rejects_lumi_bitmap_frames(self) -> None:
+        conn = MockMidiConnection()
+        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group.state = GroupState.REQUESTING_TOPOLOGY
+
+        topology_pkt = _build_topology_packet(["LKB0000000000000"])
+        group._process_message(topology_pkt)
+
+        ack_pkt = _build_ack_packet(0)
+        group._process_message(ack_pkt)
+
+        grid = LEDGrid()
+        grid.fill(RED)
+
+        conn.sent.clear()
+        assert not group.set_led_data(next(iter(group._devices)), grid.heap_data)
+        assert conn.sent == []
+
+    def test_ack_flushes_follow_up_heap_packets(self) -> None:
+        conn = MockMidiConnection()
+        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group.state = GroupState.REQUESTING_TOPOLOGY
+
+        topology_pkt = _build_topology_packet(["LPB0000000000000"])
+        group._process_message(topology_pkt)
+        group._process_message(_build_ack_packet(0))
+
+        grid = LEDGrid()
+        for y in range(grid.rows):
+            for x in range(grid.cols):
+                grid.set_pixel(x, y, RED if (x + y) % 2 == 0 else BLUE)
+
+        conn.sent.clear()
+        uid = next(iter(group._devices))
+        assert group.set_led_data(uid, grid.heap_data)
+        first_burst = list(conn.sent)
+        assert len(first_burst) > 1
+        heap = group.get_heap(uid)
+        assert heap is not None
+        assert heap.is_dirty
+
+        conn.sent.clear()
+        group._process_message(_build_ack_packet(0, counter=_decode_packet_index(first_burst[0])))
+        assert conn.sent, "expected ACK to trigger immediate follow-up heap flush"
 
 
 class TestAPIActivation:

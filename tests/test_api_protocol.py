@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from base64 import b64encode
 from typing import Any, cast
@@ -66,7 +67,7 @@ class TestBinaryFrame:
 
     def test_parse_too_short(self) -> None:
         with pytest.raises(ValueError, match="wrong size"):
-            parse_binary_frame(b"\xBD\x01\x00\x00")
+            parse_binary_frame(b"\xbd\x01\x00\x00")
 
     def test_parse_too_long(self) -> None:
         data = bytes([BINARY_MAGIC, BINARY_TYPE_FRAME]) + b"\x00" * (BINARY_FRAME_SIZE - 2 + 1)
@@ -74,7 +75,7 @@ class TestBinaryFrame:
             parse_binary_frame(data)
 
     def test_parse_bad_magic(self) -> None:
-        data = b"\xFF" + b"\x01" + b"\x00" * (BINARY_FRAME_SIZE - 2)
+        data = b"\xff" + b"\x01" + b"\x00" * (BINARY_FRAME_SIZE - 2)
         with pytest.raises(ValueError, match="bad magic"):
             parse_binary_frame(data)
 
@@ -191,3 +192,17 @@ class TestApiServerFrameValidation:
 
         assert response == {"type": "frame_ack", "uid": 42, "accepted": True}
         assert len(manager.frames) == 1
+
+    def test_subscribe_response_filters_invalid_events(self) -> None:
+        manager = _DummyManager()
+        server = ApiServer(cast("Any", manager))
+        event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+        response, sub_id = server._handle_json(
+            b'{"type":"subscribe","events":["device","nope","touch"]}\n',
+            event_queue,
+            None,
+        )
+
+        assert response == {"type": "subscribed", "events": ["device", "touch"]}
+        assert sub_id is not None

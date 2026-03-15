@@ -68,6 +68,8 @@ class RemoteHeap:
         self._target = bytearray(size)
         self._messages: deque[_InFlightMessage] = deque()
         self._packet_index: int = 0
+        self._last_packet_index_received: int = 0
+        self._has_received_ack = False
 
     @property
     def size(self) -> int:
@@ -100,6 +102,8 @@ class RemoteHeap:
         self._target = bytearray(self._size)
         self._messages.clear()
         self._packet_index = 0
+        self._last_packet_index_received = 0
+        self._has_received_ack = False
 
     def reset_device_state(self) -> None:
         """Mark all device bytes as unknown (e.g., after reconnect).
@@ -108,6 +112,9 @@ class RemoteHeap:
         """
         self._device_state = [_UNKNOWN] * self._size
         self._messages.clear()
+        self._packet_index = (
+            (self._last_packet_index_received + 1) & _COUNTER_MASK if self._has_received_ack else 0
+        )
 
     def set_bytes(self, offset: int, data: bytes | bytearray) -> None:
         """Update target heap at offset."""
@@ -132,10 +139,17 @@ class RemoteHeap:
         if not regions:
             return None
 
+        if self._messages:
+            packet_index = self._packet_index
+        elif self._has_received_ack:
+            packet_index = (self._last_packet_index_received + 1) & _COUNTER_MASK
+        else:
+            packet_index = self._packet_index
+
         result_state = bytearray(expected)
         builder = HostPacketBuilder(max_bytes=MAX_PACKET_BYTES)
         builder.write_sysex_header(device_index)
-        builder.begin_data_changes(self._packet_index)
+        builder.begin_data_changes(packet_index)
 
         encoder = DataChangeEncoder(builder.writer)
         is_complete = encode_regions_limited(encoder, regions, self._target, result_state)
@@ -149,35 +163,52 @@ class RemoteHeap:
 
         self._messages.append(
             _InFlightMessage(
-                packet_index=self._packet_index,
+                packet_index=packet_index,
                 packet_data=packet,
                 result_state=result_state,
                 payload_size=max(len(packet) - 8, 0),
                 last_send_time=now,
             )
         )
-        self._packet_index = (self._packet_index + 1) & _COUNTER_MASK
+        self._packet_index = (packet_index + 1) & _COUNTER_MASK
         return packet
 
     def handle_ack(self, packet_index: int) -> bool:
         """Process an ACK, confirming all messages up to the given index.
 
         Updates confirmed device state to match the ACK'd message's
-        result state. Returns True if the ACK matched an in-flight message.
+        result state. ACKs seen before the first heap packet seed the next
+        packet counter so SharedDataChange uploads stay aligned with the
+        device-wide host packet counter. Returns True if the ACK matched an
+        in-flight message.
         """
-        if not any(msg.packet_index == packet_index for msg in self._messages):
+        if self._has_received_ack and packet_index == self._last_packet_index_received:
             return False
 
-        found = False
-        while self._messages:
-            msg = self._messages[0]
+        self._last_packet_index_received = packet_index
+        self._has_received_ack = True
+
+        match_index = -1
+        for index, msg in enumerate(self._messages):
+            if msg.packet_index == packet_index:
+                match_index = index
+                break
+
+        if match_index < 0:
+            self.reset_device_state()
+            return False
+
+        for _ in range(match_index + 1):
+            msg = self._messages.popleft()
             for i, b in enumerate(msg.result_state):
                 self._device_state[i] = b
-            self._messages.popleft()
-            if msg.packet_index == packet_index:
-                found = True
-                break
-        return found
+
+        self._packet_index = (
+            (self._messages[-1].packet_index + 1) & _COUNTER_MASK
+            if self._messages
+            else (self._last_packet_index_received + 1) & _COUNTER_MASK
+        )
+        return True
 
     def get_retransmit(self, now: float | None = None) -> bytes | None:
         """Get a packet to retransmit if the oldest in-flight message timed out."""
