@@ -212,4 +212,4 @@ class TestDeviceSerialization:
         assert _block_type_to_api(BlockType.UNKNOWN) == "unknown"
 
     def test_valid_events_set(self) -> None:
-        assert {"device", "touch", "button"} == VALID_EVENTS
+        assert {"device", "touch", "button", "config", "topology"} == VALID_EVENTS

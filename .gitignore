@@ -15,3 +15,7 @@ build/
 .coverage
 htmlcov/
 .hypothesis/
+
+# Web UI
+web/node_modules/
+src/blocksd/web/static/

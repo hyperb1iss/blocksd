@@ -9,12 +9,19 @@ from typing import TYPE_CHECKING, Any
 from blocksd.device.registry import bitmap_grid_dimensions
 
 if TYPE_CHECKING:
-    from blocksd.device.models import ButtonEvent, DeviceInfo, TouchEvent
+    from blocksd.device.models import (
+        ButtonEvent,
+        ConfigValue,
+        DeviceConnection,
+        DeviceInfo,
+        Topology,
+        TouchEvent,
+    )
 
 log = logging.getLogger(__name__)
 
 # Supported event categories
-VALID_EVENTS = frozenset({"device", "touch", "button"})
+VALID_EVENTS = frozenset({"device", "touch", "button", "config", "topology"})
 
 
 class EventBroadcaster:
@@ -86,6 +93,25 @@ class EventBroadcaster:
         }
         self._broadcast("button", msg)
 
+    def broadcast_topology_changed(self, topo: Topology) -> None:
+        """Broadcast a topology change event."""
+        msg: dict[str, Any] = {
+            "type": "topology_changed",
+            "devices": [_device_to_dict(d) for d in topo.devices],
+            "connections": [_connection_to_dict(c) for c in topo.connections],
+        }
+        self._broadcast("topology", msg)
+
+    def broadcast_config_changed(self, uid: int, config: ConfigValue) -> None:
+        """Broadcast a config change event."""
+        msg: dict[str, Any] = {
+            "type": "config_changed",
+            "uid": uid,
+            "item": config.item,
+            "value": config.value,
+        }
+        self._broadcast("config", msg)
+
     def _broadcast(self, category: str, msg: dict[str, Any]) -> None:
         """Send message to all subscribers of the given category."""
         dead: list[int] = []
@@ -126,6 +152,16 @@ def _device_to_dict(dev: DeviceInfo) -> dict[str, Any]:
         "grid_width": grid_width,
         "grid_height": grid_height,
         "firmware_version": dev.version or None,
+    }
+
+
+def _connection_to_dict(conn: DeviceConnection) -> dict[str, Any]:
+    """Serialize DeviceConnection to the API wire format."""
+    return {
+        "device1_uid": conn.device1_uid,
+        "device2_uid": conn.device2_uid,
+        "port1": conn.port1,
+        "port2": conn.port2,
     }
 
 

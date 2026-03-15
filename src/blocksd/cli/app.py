@@ -27,6 +27,36 @@ def run(
 
 
 @app.command()
+def ui(
+    port: int = typer.Option(9010, "--port", "-p", help="Web UI port"),
+    host: str = typer.Option("127.0.0.1", "--host", help="Web UI bind address"),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Don't open browser"),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+    config: Path | None = typer.Option(default=None, help="Config file path"),  # noqa: B008
+) -> None:
+    """Start the daemon with the web UI and open a browser."""
+    import threading
+    import webbrowser
+
+    from blocksd.config.loader import load_config
+    from blocksd.daemon import start
+
+    cfg = load_config(config)
+    cfg.verbose = cfg.verbose or verbose
+    cfg.web_enabled = True
+    cfg.web_host = host
+    cfg.web_port = port
+
+    url = f"http://{host}:{port}"
+    typer.echo(f"Starting blocksd web UI at {url}")
+
+    if not no_browser:
+        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+
+    start(cfg)
+
+
+@app.command()
 def status(
     probe: bool = typer.Option(
         False, "--probe", "-p", help="Connect briefly to get full device info"

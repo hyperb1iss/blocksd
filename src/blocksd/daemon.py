@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from blocksd import sdnotify
-from blocksd.api.server import ApiServer
+from blocksd.api.server import ApiServer, WebServer
 from blocksd.config.schema import DaemonConfig
 from blocksd.logging import setup_logging
 from blocksd.topology.manager import TopologyManager
@@ -37,6 +37,13 @@ async def run_daemon(config: DaemonConfig) -> None:
     socket_path = Path(config.api_socket) if config.api_socket else None
     api_server = ApiServer(manager, socket_path=socket_path)
 
+    # Start web UI server
+    web_server = WebServer(
+        manager,
+        host=config.web_host,
+        port=config.web_port,
+    )
+
     # Graceful shutdown on SIGINT/SIGTERM
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
@@ -50,6 +57,9 @@ async def run_daemon(config: DaemonConfig) -> None:
     if config.api_enabled:
         await api_server.start()
 
+    if config.web_enabled:
+        await web_server.start()
+
     sdnotify.ready()
     sdnotify.status("Scanning for ROLI devices")
     log.info("blocksd ready — scanning for ROLI devices")
@@ -57,6 +67,9 @@ async def run_daemon(config: DaemonConfig) -> None:
 
     sdnotify.stopping()
     log.info("Shutting down...")
+
+    if config.web_enabled:
+        await web_server.stop()
 
     if config.api_enabled:
         await api_server.stop()
