@@ -6,7 +6,7 @@
 
 ## What We're Building
 
-**blocksd** is a Linux daemon that gives ROLI Blocks devices a second life. ROLI's official software is Windows/macOS only and discontinued for the original Blocks lineup. On Linux, these devices are expensive paperweights — they power on, show a searching animation, and die.
+**blocksd** is a Linux daemon that brings full ROLI Blocks support to Linux. ROLI's official software is Windows/macOS only — on Linux, these devices show a searching animation and eventually power off since there's no host-side driver to activate API mode.
 
 We're building the full protocol stack: device discovery, topology management, API mode keepalive, LED control, touch/pressure input, and eventually LittleFoot program upload. The goal is complete parity with the original ROLI drivers, plus capabilities they never shipped.
 
@@ -179,9 +179,9 @@ Expose device state and control over HTTP for browser-based interfaces:
 
 ## 💜 Why This Matters
 
-ROLI made beautiful hardware, then abandoned the software. Thousands of Blocks devices are sitting in drawers because the company pivoted and stopped supporting them. The protocol is undocumented — everything in blocksd was reverse-engineered from extracted ROLI Connect installers and JUCE SDK source.
+ROLI still actively ships and supports Blocks on Windows and macOS — but Linux gets nothing. The protocol is undocumented and everything in blocksd was reverse-engineered from extracted ROLI Connect installers and JUCE SDK source.
 
-This isn't just about keeping devices alive. It's about proving that hardware doesn't have to die when the company does. With a clean protocol implementation and a daemon that handles the lifecycle, these devices become a platform for whatever you can imagine.
+blocksd brings full Blocks support to Linux. With a clean protocol implementation and a daemon that handles the lifecycle, these devices become a platform for whatever you can imagine — on the OS of your choice.
 
 The 15×15 LED grid on a Lightpad is small. But it's physical, tactile, and sitting right there on your desk. Sometimes the most useful display isn't the one with the most pixels — it's the one you can reach out and touch.
 
@@ -189,6 +189,6 @@ The 15×15 LED grid on a Lightpad is small. But it's physical, tactile, and sitt
 
 <div align="center">
 
-*Built for the blocks that ROLI forgot.*
+*Blocks on Linux — because your OS shouldn't limit your hardware.*
 
 </div>
