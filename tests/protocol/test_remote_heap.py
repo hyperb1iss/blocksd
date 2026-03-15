@@ -462,11 +462,15 @@ class TestIntegration:
         heap = RemoteHeap(heap_size_for_block(BlockType.LIGHTPAD))
 
         # Seed the device with the LED program first.
+        # With unknown device state, this also zeroes the full heap — may take
+        # multiple packets (program bytes + explicit zeros for the rest).
         heap.set_bytes(0, bitmap_led_program())
-        program_packet = heap.send_changes(0, now=0.0)
-        assert program_packet is not None
-        assert _decode_end_marker(program_packet) == "end_of_changes"
-        assert heap.handle_ack(_decode_packet_index(program_packet))
+        now = 0.0
+        while heap.is_dirty:
+            pkt = heap.send_changes(0, now=now)
+            assert pkt is not None
+            assert heap.handle_ack(_decode_packet_index(pkt))
+            now += 0.01
 
         grid = LEDGrid()
         for y in range(15):

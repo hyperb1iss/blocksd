@@ -77,7 +77,13 @@ class RemoteHeap:
 
     @property
     def is_dirty(self) -> bool:
-        """True if target differs from expected device state."""
+        """True if target differs from expected device state.
+
+        A blank target (all zeros) is never dirty — matches the ROLI
+        isAllZero guard that prevents flushing an empty heap.
+        """
+        if not any(self._target):
+            return False
         return self._expected_state() != self._target
 
     @property
@@ -132,6 +138,11 @@ class RemoteHeap:
         or the in-flight byte limit is reached.
         """
         if self.in_flight_bytes >= MAX_IN_FLIGHT_BYTES:
+            return None
+
+        # Match ROLI isAllZero check: don't send changes if target is blank.
+        # This avoids flushing 7200 bytes of zeros before any program is loaded.
+        if not any(self._target):
             return None
 
         expected = self._expected_state()
@@ -227,9 +238,14 @@ class RemoteHeap:
 
         If messages are in-flight, returns the tail message's result state
         (what the device will have once all pending ACKs arrive). Otherwise,
-        returns confirmed device state with unknown bytes as 0x00 — matching
-        C++ uint16→uint8 truncation where 0x100 becomes 0x00.
+        returns confirmed device state. Unknown bytes (0x100) are mapped to
+        the bitwise inverse of the target — guaranteeing they always differ
+        from the target and produce a data-change command. This matches the
+        ROLI C++ behaviour where uint16(0x100) != uint8(target) is always true.
         """
         if self._messages:
             return bytearray(self._messages[-1].result_state)
-        return bytearray(b & 0xFF if b != _UNKNOWN else 0 for b in self._device_state)
+        return bytearray(
+            (self._target[i] ^ 0xFF) if b == _UNKNOWN else (b & 0xFF)
+            for i, b in enumerate(self._device_state)
+        )
