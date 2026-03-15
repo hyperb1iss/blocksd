@@ -16,7 +16,7 @@ from blocksd.topology.manager import TopologyManager
 
 
 def _ws_magic_accept(key: str) -> str:
-    magic = "258EAFA5-E914-47DA-95CA-5AB5DC588260"
+    magic = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     return base64.b64encode(hashlib.sha1((key + magic).encode()).digest()).decode()
 
 

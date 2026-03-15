@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     import asyncio
     from pathlib import Path
 
-WS_MAGIC = "258EAFA5-E914-47DA-95CA-5AB5DC588260"
+WS_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 MIME_TYPES: dict[str, str] = {
     ".html": "text/html; charset=utf-8",

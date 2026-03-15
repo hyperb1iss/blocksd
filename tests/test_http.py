@@ -62,7 +62,7 @@ class TestWsUpgrade:
         assert b"101 Switching Protocols" in resp
         assert b"Sec-WebSocket-Accept: " in resp
         # Verified with Python hashlib, Node.js crypto, and sha1sum
-        assert b"h91UwkhPLMFS9ugJ2Wfkm2cm2Rc=" in resp
+        assert b"s3pPLMBiTxaQ9kYGzzhZRbK+xOo=" in resp
 
 
 class TestHttpResponse:
