@@ -21,7 +21,7 @@ class DaemonConfig(BaseModel):
     api_socket: str = ""  # empty = default ($XDG_RUNTIME_DIR/blocksd/blocksd.sock)
 
     # Web UI settings
-    web_enabled: bool = False
+    web_enabled: bool = True
     web_host: str = "127.0.0.1"
     web_port: int = 9010
 
