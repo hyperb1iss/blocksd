@@ -11,16 +11,12 @@ Restart=on-failure
 RestartSec=5
 WatchdogSec=30
 
-# Security hardening
+# Security hardening (user-service safe subset)
 NoNewPrivileges=true
 ProtectSystem=strict
-ProtectHome=read-only
 PrivateTmp=true
 ProtectKernelTunables=true
 ProtectControlGroups=true
-
-# Needs access to ALSA/MIDI
-SupplementaryGroups=audio
 
 [Install]
 WantedBy=default.target
