@@ -2,16 +2,20 @@ import { useEffect, useState } from 'react';
 import type { Device } from '../lib/types';
 import { useBlocksd } from './useBlocksd';
 
+const POLL_INTERVAL = 5000;
+
 /** Tracks all connected devices via discover + live events. */
 export function useDevices(): Device[] {
   const { send, subscribe, connected } = useBlocksd();
   const [devices, setDevices] = useState<Device[]>([]);
 
-  // Request device list on (re)connect
+  // Poll for devices — daemon may still be discovering on first connect
   useEffect(() => {
-    if (connected) {
-      send({ type: 'discover' });
-    }
+    if (!connected) return;
+
+    send({ type: 'discover' });
+    const interval = setInterval(() => send({ type: 'discover' }), POLL_INTERVAL);
+    return () => clearInterval(interval);
   }, [connected, send]);
 
   // Listen for device events

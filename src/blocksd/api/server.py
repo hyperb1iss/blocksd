@@ -434,9 +434,11 @@ class WebServer:
                 return
 
             if request.is_websocket_upgrade and request.path == "/ws":
+                log.info("WebSocket client connected")
                 writer.write(ws_upgrade_response(request.ws_key))
                 await writer.drain()
                 await self._handle_websocket(reader, writer)
+                log.info("WebSocket client disconnected")
             elif request.method == "GET":
                 writer.write(serve_static(request.path, self._static_dir))
                 await writer.drain()
@@ -449,7 +451,7 @@ class WebServer:
         except (TimeoutError, ConnectionResetError, BrokenPipeError):
             pass
         except Exception:
-            log.debug("HTTP connection error", exc_info=True)
+            log.warning("Web server connection error", exc_info=True)
         finally:
             writer.close()
             with contextlib.suppress(Exception):

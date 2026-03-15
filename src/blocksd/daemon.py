@@ -51,14 +51,17 @@ async def run_daemon(config: DaemonConfig) -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop_event.set)
 
-    manager_task = asyncio.create_task(manager.run(), name="topology-manager")
-    watchdog_task = _start_watchdog(stop_event)
-
+    # Start servers BEFORE the topology manager so all event callbacks
+    # are wired before any DeviceGroups are created (groups copy the
+    # callback lists at creation time).
     if config.api_enabled:
         await api_server.start()
 
     if config.web_enabled:
         await web_server.start()
+
+    manager_task = asyncio.create_task(manager.run(), name="topology-manager")
+    watchdog_task = _start_watchdog(stop_event)
 
     sdnotify.ready()
     sdnotify.status("Scanning for ROLI devices")
