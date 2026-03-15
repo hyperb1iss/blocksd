@@ -172,10 +172,13 @@ class TestAssemblerOpcodes:
         asm.dup_offset(7)
         asm.dup_offset(8)
         code = self._get_code(asm)
-        assert code[0] == Op.DUP_OFFSET_01
-        assert code[1] == Op.DUP_OFFSET_07
+        # All offsets use the general form (firmware compat — no fast-path)
+        assert code[0] == Op.DUP_OFFSET
+        assert code[1] == 1
         assert code[2] == Op.DUP_OFFSET
-        assert code[3] == 8
+        assert code[3] == 7
+        assert code[4] == Op.DUP_OFFSET
+        assert code[5] == 8
 
     def test_call_native(self):
         asm = BytecodeAssembler()

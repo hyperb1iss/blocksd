@@ -60,6 +60,36 @@ SERIAL_TIMEOUT = 5.0  # give up serial after 5s
 TICK_INTERVAL = 0.2  # 200ms lifecycle timer (matches C++ timerInterval)
 
 
+def _build_green_fill() -> bytes:
+    """Fill 15x15 grid with green — fully unrolled, no loops or dupOffset.
+
+    Emits 225 hardcoded fillPixel calls. Large but guaranteed to work
+    since it only uses opcodes proven safe on firmware v1.1.0.
+    """
+    from blocksd.littlefoot.assembler import BytecodeAssembler, compute_function_id
+
+    MAKE_ARGB = compute_function_id("makeARGB/iiiii")
+    FILL_PIXEL = compute_function_id("fillPixel/viii")
+
+    asm = BytecodeAssembler(heap_size=0)
+    asm.begin_function("repaint/v")
+
+    for y in range(15):
+        for x in range(15):
+            # fillPixel(makeARGB(255, 0, 255, 0), x, y) — all args hardcoded
+            asm.push8(y)       # y (RTL: pushed first)
+            asm.push8(x)       # x
+            asm.push0()        # blue = 0
+            asm.push16(255)    # green = 255
+            asm.push0()        # red = 0
+            asm.push16(255)    # alpha = 255
+            asm.call_native(MAKE_ARGB)
+            asm.call_native(FILL_PIXEL)
+
+    asm.ret_void(0)
+    return asm.build()
+
+
 class GroupState(StrEnum):
     REQUESTING_SERIAL = auto()
     REQUESTING_TOPOLOGY = auto()
@@ -320,16 +350,21 @@ class DeviceGroup:
         return True
 
     def _load_led_program(self, uid: int) -> None:
-        """Load BitmapLEDProgram into a device's heap for bitmap LED control."""
+        """Load LED test program into a device's heap.
+
+        TODO: Replace with proper BitmapLEDProgram once firmware opcode
+        compatibility is resolved (getHeapBits 0x40 and dupOffset_01 0x11
+        are not supported on firmware v1.1.0).
+        """
         dev = self._devices.get(uid)
         heap = self._heaps.get(uid)
         if dev is None or heap is None:
             return
         if not supports_bitmap_led_program(dev.block_type):
             return
-        program = bitmap_led_program()
+        program = _build_green_fill()
         heap.set_bytes(0, program)
-        log.debug("Loaded BitmapLEDProgram (%d bytes) for %s", len(program), dev.serial)
+        log.debug("Loaded green fill program (%d bytes) for %s", len(program), dev.serial)
 
     def _flush_heaps(self, now: float) -> None:
         """Send pending heap changes and retransmit timed-out packets."""

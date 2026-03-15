@@ -188,9 +188,10 @@ class BytecodeAssembler:
         self._emit_byte(Op.DUP)
 
     def dup_offset(self, offset: int) -> None:
-        if 1 <= offset <= 7:
-            self._emit_byte(Op.DUP_OFFSET_01 + offset - 1)
-        elif offset <= 0xFF:
+        # Always use the general form with explicit int8 operand.
+        # Firmware v1.1.0 doesn't have the fast-path dupOffset_01-07
+        # opcodes — position 0x12 is the general dupOffset(int8).
+        if offset <= 0xFF:
             self._emit_byte(Op.DUP_OFFSET)
             self._emit_byte(offset & 0xFF)
         else:
@@ -213,6 +214,20 @@ class BytecodeAssembler:
 
     def mul_int32(self) -> None:
         self._emit_byte(Op.MUL_INT32)
+
+    def div_int32(self) -> None:
+        self._emit_byte(Op.DIV_INT32)
+
+    def mod_int32(self) -> None:
+        self._emit_byte(Op.MOD_INT32)
+
+    def dup_from_global(self, index: int) -> None:
+        self._emit_byte(Op.DUP_FROM_GLOBAL)
+        self._emit_i16(index)
+
+    def drop_to_global(self, index: int) -> None:
+        self._emit_byte(Op.DROP_TO_GLOBAL)
+        self._emit_i16(index)
 
     def bit_shift_left(self) -> None:
         self._emit_byte(Op.BIT_SHIFT_LEFT)
