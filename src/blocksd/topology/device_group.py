@@ -362,6 +362,9 @@ class DeviceGroup:
             return
         if not supports_bitmap_led_program(dev.block_type):
             return
+        # TODO: Replace with proper BitmapLEDProgram using firmware-safe opcodes
+        # For now, skip program upload — device keeps its default LED animation.
+        return
         program = _build_green_fill()
         heap.set_bytes(0, program)
         log.debug("Loaded green fill program (%d bytes) for %s", len(program), dev.serial)
