@@ -27,7 +27,7 @@ from blocksd.device.registry import (
     heap_size_for_block,
     supports_bitmap_led_program,
 )
-from blocksd.littlefoot.programs import bitmap_led_program, bitmap_led_program_size
+from blocksd.littlefoot.programs import bitmap_led_program_size
 from blocksd.protocol.builder import (
     build_begin_api_mode,
     build_config_request,
@@ -68,8 +68,8 @@ def _build_green_fill() -> bytes:
     """
     from blocksd.littlefoot.assembler import BytecodeAssembler, compute_function_id
 
-    MAKE_ARGB = compute_function_id("makeARGB/iiiii")
-    FILL_PIXEL = compute_function_id("fillPixel/viii")
+    make_argb = compute_function_id("makeARGB/iiiii")
+    fill_pixel = compute_function_id("fillPixel/viii")
 
     asm = BytecodeAssembler(heap_size=0)
     asm.begin_function("repaint/v")
@@ -83,8 +83,8 @@ def _build_green_fill() -> bytes:
             asm.push16(255)    # green = 255
             asm.push0()        # red = 0
             asm.push16(255)    # alpha = 255
-            asm.call_native(MAKE_ARGB)
-            asm.call_native(FILL_PIXEL)
+            asm.call_native(make_argb)
+            asm.call_native(fill_pixel)
 
     asm.ret_void(0)
     return asm.build()

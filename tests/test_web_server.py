@@ -8,8 +8,12 @@ import hashlib
 import json
 import os
 import struct
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 from blocksd.api.server import WebServer
 from blocksd.topology.manager import TopologyManager
@@ -57,7 +61,7 @@ class TestWebServerIntegration:
     """Full TCP-level tests — connect, upgrade, exchange WebSocket messages."""
 
     @pytest.fixture
-    async def server(self) -> WebServer:
+    async def server(self) -> AsyncGenerator[WebServer]:
         manager = TopologyManager()
         srv = WebServer(manager, host="127.0.0.1", port=0)
         await srv.start()
