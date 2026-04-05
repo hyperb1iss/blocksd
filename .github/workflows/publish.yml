@@ -3,10 +3,13 @@ name: Publish
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 jobs:
   pypi:
     uses: hyperb1iss/shared-workflows/.github/workflows/python-publish.yml@v1
+    with:
+      checkout-ref: ${{ github.ref }}
     permissions:
       contents: read
       id-token: write

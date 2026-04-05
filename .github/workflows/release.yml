@@ -108,7 +108,12 @@ jobs:
           git push origin HEAD:${{ github.ref_name }}
           git push origin "v${{ steps.version.outputs.version }}"
 
-      # publish.yml triggers automatically on tag push
+      - name: Trigger publish workflow
+        if: ${{ !inputs.dry_run }}
+        run: |
+          gh workflow run publish.yml --ref "v${{ steps.version.outputs.version }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Summary
         run: |
