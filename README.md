@@ -48,11 +48,26 @@ ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter 
 
 ## 📦 Install
 
+### Quick Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hyperb1iss/blocksd/main/install.sh | bash
+```
+
+Installs blocksd, udev rules, and a systemd user service in one shot.
+
 ### From PyPI
 
 ```bash
 uv tool install blocksd
 blocksd install    # sets up systemd service + udev rules
+```
+
+### Arch Linux (AUR)
+
+```bash
+yay -S blocksd       # stable release
+yay -S blocksd-git   # latest from main
 ```
 
 ### From Source
@@ -127,6 +142,15 @@ blocksd config get 10                  # read velocity sensitivity
 blocksd config set 10 50               # write velocity sensitivity
 ```
 
+### Web Dashboard
+
+```bash
+blocksd ui                             # launch web UI on http://localhost:9010
+blocksd ui --port 8080                 # custom port
+```
+
+Opens a real-time dashboard showing connected devices, topology, battery status, and LED state. Uses WebSocket for live updates.
+
 ### Service Management
 
 ```bash
@@ -138,11 +162,16 @@ blocksd uninstall                      # remove everything
 
 ## 🔌 External API
 
-`blocksd` exposes a Unix socket API for external clients like Hypercolor.
+`blocksd` exposes two APIs for external integration:
 
+**Unix Socket** — low-latency IPC for local clients (e.g. Hypercolor)
 - Socket path: `$XDG_RUNTIME_DIR/blocksd/blocksd.sock`
 - Fallback path: `/tmp/blocksd/blocksd.sock`
 - One socket supports both control messages and high-rate LED frame writes
+
+**WebSocket** — browser and network clients (used by `blocksd ui`)
+- Default: `ws://localhost:9010/ws`
+- Binary LED frame writes + JSON device events
 
 The quick rules:
 
@@ -194,6 +223,16 @@ blocksd
 │   ├── detector.py           MIDI port scanning
 │   ├── device_group.py       connection lifecycle (the big one)
 │   └── manager.py            orchestrates DeviceGroups
+├── api/
+│   ├── server.py             Unix socket + WebSocket servers
+│   ├── protocol.py           NDJSON + binary frame wire protocol
+│   ├── events.py             event broadcaster (device/touch/button/config)
+│   ├── websocket.py          RFC 6455 frame codec
+│   └── http.py               HTTP parser + static file serving
+├── web/                      web dashboard (Vite build output)
+├── config/
+│   ├── schema.py             DaemonConfig (Pydantic)
+│   └── loader.py             TOML config file parsing
 ├── sdnotify.py               lightweight systemd notification (no deps)
 └── cli/
     ├── app.py                Typer commands (run, status --probe)
