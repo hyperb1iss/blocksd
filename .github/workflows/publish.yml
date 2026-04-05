@@ -5,14 +5,34 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+permissions:
+  contents: write
+  id-token: write
+  actions: read
+
 jobs:
   pypi:
-    uses: hyperb1iss/shared-workflows/.github/workflows/python-publish.yml@v1
-    with:
-      checkout-ref: ${{ github.ref }}
-    permissions:
-      contents: read
-      id-token: write
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/blocksd
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref }}
+
+      - uses: astral-sh/setup-uv@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Build package
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
 
   github-release:
     uses: hyperb1iss/shared-workflows/.github/workflows/github-release.yml@v1
