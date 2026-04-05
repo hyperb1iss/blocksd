@@ -32,13 +32,18 @@ lint:
 lint-fix:
     uv run ruff check --fix src tests
 
-# Format code
+# Format Python code
 fmt:
     uv run ruff format src tests
+
+# Format markdown, yaml, and json files
+fmt-docs:
+    npx prettier --write "**/*.md" "**/*.yml" "**/*.yaml" "**/*.json" "!uv.lock"
 
 # Check formatting without changes
 fmt-check:
     uv run ruff format --check src tests
+    npx prettier --check "**/*.md" "**/*.yml" "**/*.yaml" "**/*.json" "!uv.lock"
 
 # Type check with ty
 typecheck:
@@ -48,7 +53,7 @@ typecheck:
 check: lint fmt-check typecheck test
 
 # Fix everything auto-fixable (lint + format)
-fix: lint-fix fmt
+fix: lint-fix fmt fmt-docs
 
 # Clean build artifacts and caches
 clean:
@@ -66,6 +71,10 @@ install-service:
     sudo systemctl daemon-reload
     sudo udevadm control --reload-rules
     @echo "Service installed. Enable with: sudo systemctl enable --now blocksd"
+
+# Build AUR package locally (requires makepkg)
+aur-build:
+    cd packaging/aur/blocksd && makepkg -si
 
 # Show dependency tree
 deps:

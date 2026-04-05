@@ -151,21 +151,25 @@ Expose device state and control over HTTP for browser-based interfaces:
 - [x] **LED Grid & Patterns** — RGB565 bitmap, Color type, built-in patterns
 - [x] **DataChange Encoder** — diff-based heap writes with RLE
 - [x] **systemd/udev** — user service, device rules, install/uninstall CLI
+- [x] **Remote Heap Manager** — ACK-tracked heap state, retransmission, in-flight budgets
+- [x] **LittleFoot Assembler** — bytecode assembler with label resolution and FNV1a function hashing
+- [x] **CLI LED Commands** — `blocksd led solid #ff00ff`, rainbow, gradient, checkerboard
+- [x] **Touch & Button Events** — normalized pressure/velocity callbacks
+- [x] **Config Commands** — device settings read/write via CLI
+- [x] **sd_notify Integration** — Type=notify service with watchdog heartbeat
+- [x] **Unix Socket API** — NDJSON + binary frame protocol for external clients
+- [x] **WebSocket & HTTP API** — browser-based control, monitoring, and LED streaming
+- [x] **Web Dashboard** — `blocksd ui` launches a real-time device status interface
 
 ### In Progress
 
-- [ ] **Remote Heap Manager** — track device heap state, handle ACK retransmission
-- [ ] **LittleFoot Upload** — BitmapLEDProgram bytecode to device memory
-- [ ] **CLI LED Commands** — `blocksd led solid #ff00ff`, pattern control
+- [ ] **LittleFoot Program Upload** — BitmapLEDProgram bytecode to device memory (blocked by firmware opcode incompatibility on v1.1.0 — `getHeapBits` and `dupOffset` crash the VM; assembler and programs are complete, upload is disabled pending firmware fix)
 
 ### Planned
 
-- [ ] **Touch Event API** — expose pressure/velocity data to consumers
-- [ ] **Config Commands** — device settings read/write
 - [ ] **D-Bus Interface** — IPC for desktop integration
-- [ ] **sd_notify** — proper systemd watchdog integration
 - [ ] **Multi-block Surfaces** — unified coordinate space across DNA topology
-- [ ] **WebSocket API** — browser-based control and monitoring
+- [ ] **Hypercolor Integration** — ROLI Blocks as an RGB device backend
 
 ### Aspirational
 
