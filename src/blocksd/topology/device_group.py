@@ -77,12 +77,12 @@ def _build_green_fill() -> bytes:
     for y in range(15):
         for x in range(15):
             # fillPixel(makeARGB(255, 0, 255, 0), x, y) — all args hardcoded
-            asm.push8(y)       # y (RTL: pushed first)
-            asm.push8(x)       # x
-            asm.push0()        # blue = 0
-            asm.push16(255)    # green = 255
-            asm.push0()        # red = 0
-            asm.push16(255)    # alpha = 255
+            asm.push8(y)  # y (RTL: pushed first)
+            asm.push8(x)  # x
+            asm.push0()  # blue = 0
+            asm.push16(255)  # green = 255
+            asm.push0()  # red = 0
+            asm.push16(255)  # alpha = 255
             asm.call_native(make_argb)
             asm.call_native(fill_pixel)
 
