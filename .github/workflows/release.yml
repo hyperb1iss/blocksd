@@ -86,11 +86,12 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Update version in pyproject.toml
+      - name: Update version files
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
-          echo "Updated pyproject.toml to $VERSION"
+          sed -i "s/^pkgver=.*/pkgver=$VERSION/" packaging/aur/blocksd/PKGBUILD
+          echo "Updated pyproject.toml + PKGBUILD to $VERSION"
 
       - name: Build package
         run: uv build
@@ -98,7 +99,7 @@ jobs:
       - name: Commit version bump
         if: ${{ !inputs.dry_run }}
         run: |
-          git add pyproject.toml
+          git add pyproject.toml packaging/aur/blocksd/PKGBUILD
           git commit -m "release: v${{ steps.version.outputs.version }}"
 
       - name: Create and push tag
