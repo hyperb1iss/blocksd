@@ -6,7 +6,7 @@ This document describes the daemon socket protocol as it exists in
 `src/blocksd/api/` and the LED write path behind it. It is intentionally
 practical: exact frame sizes, response shapes, retry expectations, and the
 small lifecycle details that matter when you are building an agent or service
- against `blocksd`.
+against `blocksd`.
 
 ### Socket
 
@@ -77,12 +77,12 @@ Only send these to devices with nonzero `grid_width` / `grid_height`.
 
 Each binary frame is exactly 685 bytes:
 
-| Offset | Size | Type | Meaning |
-| --- | --- | --- | --- |
-| `0` | `1` | `u8` | magic `0xBD` |
-| `1` | `1` | `u8` | message type `0x01` |
-| `2` | `8` | `u64 LE` | device `uid` |
-| `10` | `675` | bytes | `15 * 15 * 3` RGB888 pixel data |
+| Offset | Size  | Type     | Meaning                         |
+| ------ | ----- | -------- | ------------------------------- |
+| `0`    | `1`   | `u8`     | magic `0xBD`                    |
+| `1`    | `1`   | `u8`     | message type `0x01`             |
+| `2`    | `8`   | `u64 LE` | device `uid`                    |
+| `10`   | `675` | bytes    | `15 * 15 * 3` RGB888 pixel data |
 
 Constraints:
 
@@ -135,13 +135,19 @@ JSON messages are newline-delimited UTF-8 JSON objects.
 Request:
 
 ```json
-{"type":"ping","id":"req-1"}
+{ "type": "ping", "id": "req-1" }
 ```
 
 Response:
 
 ```json
-{"type":"pong","version":"0.1.0","uptime_seconds":12,"device_count":2,"id":"req-1"}
+{
+  "type": "pong",
+  "version": "0.1.0",
+  "uptime_seconds": 12,
+  "device_count": 2,
+  "id": "req-1"
+}
 ```
 
 ### `discover`
@@ -149,7 +155,7 @@ Response:
 Request:
 
 ```json
-{"type":"discover","id":"req-2"}
+{ "type": "discover", "id": "req-2" }
 ```
 
 Response shape:
@@ -194,13 +200,13 @@ protocol, base64-encoded.
 Request:
 
 ```json
-{"type":"frame","uid":42,"pixels":"...base64..."}
+{ "type": "frame", "uid": 42, "pixels": "...base64..." }
 ```
 
 Response:
 
 ```json
-{"type":"frame_ack","uid":42,"accepted":true}
+{ "type": "frame_ack", "uid": 42, "accepted": true }
 ```
 
 Rules:
@@ -213,13 +219,13 @@ Rules:
 Request:
 
 ```json
-{"type":"brightness","uid":42,"value":128}
+{ "type": "brightness", "uid": 42, "value": 128 }
 ```
 
 Response:
 
 ```json
-{"type":"brightness_ack","uid":42,"ok":true}
+{ "type": "brightness_ack", "uid": 42, "ok": true }
 ```
 
 Rules:
@@ -233,13 +239,13 @@ Rules:
 Request:
 
 ```json
-{"type":"subscribe","events":["device","touch","button"]}
+{ "type": "subscribe", "events": ["device", "touch", "button"] }
 ```
 
 Response:
 
 ```json
-{"type":"subscribed","events":["button","device","touch"]}
+{ "type": "subscribed", "events": ["button", "device", "touch"] }
 ```
 
 Valid event categories:
@@ -277,7 +283,7 @@ Added:
 Removed:
 
 ```json
-{"type":"device_removed","uid":42}
+{ "type": "device_removed", "uid": 42 }
 ```
 
 ### Touch Events
@@ -306,7 +312,7 @@ Removed:
 ### Button Events
 
 ```json
-{"type":"button","uid":42,"button_id":0,"action":"press"}
+{ "type": "button", "uid": 42, "button_id": 0, "action": "press" }
 ```
 
 `action` is one of:

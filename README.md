@@ -35,16 +35,16 @@ ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter 
 
 ## ✦ Features
 
-| Capability | Description |
-| --- | --- |
-| 🔌 **API Mode Keepalive** | Periodic pings prevent the 5-second device timeout that kills API mode |
-| 🏗️ **Topology Management** | Auto-discovers devices over USB, tracks DNA-connected blocks through master |
-| 🎭 **Full State Machine** | Serial → topology → API activation → ping loop, matching the C++ reference |
-| 💡 **LED Control** | Lightpad / Lightpad M RGB565 bitmap grid, CLI patterns (solid, gradient, rainbow, checkerboard) |
-| 👆 **Touch & Button Events** | Normalized touch data (x/y/z/velocity) and button callbacks |
-| ⚙️ **Device Config** | Read/write device settings (sensitivity, MIDI channel, scale, etc.) |
-| 🔊 **DAW Friendly** | ALSA multi-client — blocksd and your DAW share MIDI without conflict |
-| 🛡️ **systemd Integration** | Type=notify service, watchdog heartbeat, udev rules for plug-and-play |
+| Capability                   | Description                                                                                     |
+| ---------------------------- | ----------------------------------------------------------------------------------------------- |
+| 🔌 **API Mode Keepalive**    | Periodic pings prevent the 5-second device timeout that kills API mode                          |
+| 🏗️ **Topology Management**   | Auto-discovers devices over USB, tracks DNA-connected blocks through master                     |
+| 🎭 **Full State Machine**    | Serial → topology → API activation → ping loop, matching the C++ reference                      |
+| 💡 **LED Control**           | Lightpad / Lightpad M RGB565 bitmap grid, CLI patterns (solid, gradient, rainbow, checkerboard) |
+| 👆 **Touch & Button Events** | Normalized touch data (x/y/z/velocity) and button callbacks                                     |
+| ⚙️ **Device Config**         | Read/write device settings (sensitivity, MIDI channel, scale, etc.)                             |
+| 🔊 **DAW Friendly**          | ALSA multi-client — blocksd and your DAW share MIDI without conflict                            |
+| 🛡️ **systemd Integration**   | Type=notify service, watchdog heartbeat, udev rules for plug-and-play                           |
 
 ## 📦 Install
 
@@ -80,6 +80,7 @@ uv run blocksd install
 ```
 
 The `install` command sets up:
+
 - **udev rules** — proper permissions for ROLI USB devices (requires sudo)
 - **systemd user service** — auto-starts on login with watchdog monitoring
 - **Security hardening** — sandboxed with `ProtectSystem=strict`, `NoNewPrivileges`, etc.
@@ -165,11 +166,13 @@ blocksd uninstall                      # remove everything
 `blocksd` exposes two APIs for external integration:
 
 **Unix Socket** — low-latency IPC for local clients (e.g. Hypercolor)
+
 - Socket path: `$XDG_RUNTIME_DIR/blocksd/blocksd.sock`
 - Fallback path: `/tmp/blocksd/blocksd.sock`
 - One socket supports both control messages and high-rate LED frame writes
 
 **WebSocket** — browser and network clients (used by `blocksd ui`)
+
 - Default: `ws://localhost:9010/ws`
 - Binary LED frame writes + JSON device events
 
@@ -262,16 +265,16 @@ Host                                          Device
 
 ### Supported Devices
 
-| Device | USB PID | Serial Prefix | Status |
-| --- | --- | --- | --- |
-| Lightpad Block / M | `0x0900` | `LPB` / `LPM` | ✅ Tested |
-| LUMI Keys Block | `0x0E00` | `LKB` | ✅ Tested |
-| Seaboard Block | `0x0700` | `SBB` | 🔲 Untested |
-| Live Block | — | `LIC` | 🔲 Untested |
-| Loop Block | — | `LOC` | 🔲 Untested |
-| Developer Control Block | — | `DCB` | 🔲 Untested |
-| Touch Block | — | `TCB` | 🔲 Untested |
-| Seaboard RISE 25/49 | `0x0200` / `0x0210` | — | 🔲 Untested |
+| Device                  | USB PID             | Serial Prefix | Status      |
+| ----------------------- | ------------------- | ------------- | ----------- |
+| Lightpad Block / M      | `0x0900`            | `LPB` / `LPM` | ✅ Tested   |
+| LUMI Keys Block         | `0x0E00`            | `LKB`         | ✅ Tested   |
+| Seaboard Block          | `0x0700`            | `SBB`         | 🔲 Untested |
+| Live Block              | —                   | `LIC`         | 🔲 Untested |
+| Loop Block              | —                   | `LOC`         | 🔲 Untested |
+| Developer Control Block | —                   | `DCB`         | 🔲 Untested |
+| Touch Block             | —                   | `TCB`         | 🔲 Untested |
+| Seaboard RISE 25/49     | `0x0200` / `0x0210` | —             | 🔲 Untested |
 
 Bitmap LED streaming is currently exposed for Lightpad Block / Lightpad Block M
 only. Other devices are still discoverable and supported by the topology/API

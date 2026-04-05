@@ -1,6 +1,6 @@
 # 🔮 blocksd — Vision & Use Cases
 
-> *These are precision touch surfaces with pressure sensitivity, LED feedback, and mesh networking. Why limit them to music?*
+> _These are precision touch surfaces with pressure sensitivity, LED feedback, and mesh networking. Why limit them to music?_
 
 ---
 
@@ -193,6 +193,6 @@ The 15×15 LED grid on a Lightpad is small. But it's physical, tactile, and sitt
 
 <div align="center">
 
-*Blocks on Linux — because your OS shouldn't limit your hardware.*
+_Blocks on Linux — because your OS shouldn't limit your hardware._
 
 </div>

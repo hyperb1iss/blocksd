@@ -24,6 +24,7 @@ daemon.py                 asyncio main loop, signal handling
 ### SysEx Framing
 
 All BLOCKS protocol messages are MIDI SysEx:
+
 ```
 F0 00 21 10 77 [deviceIndex] [7-bit packed payload] [checksum] F7
 │  │           │  │                                  │
@@ -35,6 +36,7 @@ F0 00 21 10 77 [deviceIndex] [7-bit packed payload] [checksum] F7
 ```
 
 ### Checksum Calculation
+
 ```python
 def calculate_checksum(data: bytes) -> int:
     checksum = len(data) & 0xFF
@@ -48,6 +50,7 @@ def calculate_checksum(data: bytes) -> int:
 Payload bits are packed LSB-first across 7-bit bytes (bit 7 always 0 for MIDI safety). When a value spans byte boundaries, low bits fill the current byte remainder, high bits continue in the next byte's low bits.
 
 ### Serial Number Request (separate SysEx format)
+
 - **Request:** `F0 00 21 10 78 3F F7`
 - **Response header:** `F0 00 21 10 78`
 - Response contains MAC prefix `48:B6:20:` followed by 16-char serial
@@ -63,7 +66,7 @@ Payload bits are packed LSB-first across 7-bit bytes (bit 7 always 0 for MIDI sa
 ### USB Device IDs (Vendor `0x2AF4`)
 
 | PID      | Device              |
-|----------|---------------------|
+| -------- | ------------------- |
 | `0x0100` | Seaboard (original) |
 | `0x0200` | Seaboard RISE 25    |
 | `0x0210` | Seaboard RISE 49    |
@@ -87,44 +90,44 @@ API_MODE_PING_TIMEOUT_MS = 5000
 
 ### Message Types — Device → Host
 
-| ID     | Name                    | Payload                                          |
-|--------|-------------------------|--------------------------------------------------|
-| `0x01` | deviceTopology          | 7b deviceCount, 8b connectionCount, then blocks  |
-| `0x02` | packetACK               | 10b packetCounter                                |
-| `0x03` | firmwareUpdateACK       | 7b code, 32b detail                              |
-| `0x04` | deviceTopologyExtend    | continuation of topology                         |
-| `0x05` | deviceTopologyEnd       | signals end of multi-packet topology             |
-| `0x06` | deviceVersion           | index + version string                           |
-| `0x07` | deviceName              | index + name string                              |
-| `0x10` | touchStart              | 7b devIdx, 5b touchIdx, 12b x, 12b y, 8b z      |
-| `0x11` | touchMove               | same as touchStart                               |
-| `0x12` | touchEnd                | same as touchStart                               |
-| `0x13` | touchStartWithVelocity  | + 8b vx, 8b vy, 8b vz                           |
-| `0x14` | touchMoveWithVelocity   | + velocity                                       |
-| `0x15` | touchEndWithVelocity    | + velocity                                       |
-| `0x18` | configMessage           | config command + data                            |
-| `0x20` | controlButtonDown       | 7b devIdx, 12b buttonID                          |
-| `0x21` | controlButtonUp         | 7b devIdx, 12b buttonID                          |
-| `0x28` | programEventMessage     | 3 × 32b integers                                 |
-| `0x30` | logMessage              | string data                                      |
+| ID     | Name                   | Payload                                         |
+| ------ | ---------------------- | ----------------------------------------------- |
+| `0x01` | deviceTopology         | 7b deviceCount, 8b connectionCount, then blocks |
+| `0x02` | packetACK              | 10b packetCounter                               |
+| `0x03` | firmwareUpdateACK      | 7b code, 32b detail                             |
+| `0x04` | deviceTopologyExtend   | continuation of topology                        |
+| `0x05` | deviceTopologyEnd      | signals end of multi-packet topology            |
+| `0x06` | deviceVersion          | index + version string                          |
+| `0x07` | deviceName             | index + name string                             |
+| `0x10` | touchStart             | 7b devIdx, 5b touchIdx, 12b x, 12b y, 8b z      |
+| `0x11` | touchMove              | same as touchStart                              |
+| `0x12` | touchEnd               | same as touchStart                              |
+| `0x13` | touchStartWithVelocity | + 8b vx, 8b vy, 8b vz                           |
+| `0x14` | touchMoveWithVelocity  | + velocity                                      |
+| `0x15` | touchEndWithVelocity   | + velocity                                      |
+| `0x18` | configMessage          | config command + data                           |
+| `0x20` | controlButtonDown      | 7b devIdx, 12b buttonID                         |
+| `0x21` | controlButtonUp        | 7b devIdx, 12b buttonID                         |
+| `0x28` | programEventMessage    | 3 × 32b integers                                |
+| `0x30` | logMessage             | string data                                     |
 
 ### Message Types — Host → Device
 
-| ID     | Name                  | Payload                              |
-|--------|-----------------------|--------------------------------------|
-| `0x01` | deviceCommandMessage  | 9b command (see Device Commands)     |
-| `0x02` | sharedDataChange      | 16b packetIndex + data change cmds   |
-| `0x03` | programEventMessage   | 3 × 32b integers                     |
-| `0x04` | firmwareUpdatePacket  | 7b size + 7-bit encoded data         |
-| `0x10` | configMessage         | 4b configCmd + item + value          |
-| `0x11` | factoryReset          | (no payload)                         |
-| `0x12` | blockReset            | (no payload)                         |
-| `0x20` | setName               | 7b length + 7-bit chars              |
+| ID     | Name                 | Payload                            |
+| ------ | -------------------- | ---------------------------------- |
+| `0x01` | deviceCommandMessage | 9b command (see Device Commands)   |
+| `0x02` | sharedDataChange     | 16b packetIndex + data change cmds |
+| `0x03` | programEventMessage  | 3 × 32b integers                   |
+| `0x04` | firmwareUpdatePacket | 7b size + 7-bit encoded data       |
+| `0x10` | configMessage        | 4b configCmd + item + value        |
+| `0x11` | factoryReset         | (no payload)                       |
+| `0x12` | blockReset           | (no payload)                       |
+| `0x20` | setName              | 7b length + 7-bit chars            |
 
 ### Device Commands (inside deviceCommandMessage)
 
 | ID     | Name                   |
-|--------|------------------------|
+| ------ | ---------------------- |
 | `0x00` | beginAPIMode           |
 | `0x01` | requestTopologyMessage |
 | `0x02` | endAPIMode             |
@@ -135,7 +138,7 @@ API_MODE_PING_TIMEOUT_MS = 5000
 ### Config Commands
 
 | ID     | Name               |
-|--------|--------------------|
+| ------ | ------------------ |
 | `0x00` | setConfig          |
 | `0x01` | requestConfig      |
 | `0x02` | requestFactorySync |
@@ -149,25 +152,27 @@ API_MODE_PING_TIMEOUT_MS = 5000
 
 ### Data Change Commands (for sharedDataChange / program upload)
 
-| ID  | Name                    | Extra bits                  |
-|-----|-------------------------|-----------------------------|
-| `0` | endOfPacket             | —                           |
-| `1` | endOfChanges            | —                           |
-| `2` | skipBytesFew            | 4b count                    |
-| `3` | skipBytesMany           | 8b count                    |
-| `4` | setSequenceOfBytes      | (8b value + 1b continues)×N |
-| `5` | setFewBytesWithValue    | 4b count + 8b value         |
-| `6` | setFewBytesWithLastValue| 4b count                    |
-| `7` | setManyBytesWithValue   | 8b count + 8b value         |
+| ID  | Name                     | Extra bits                  |
+| --- | ------------------------ | --------------------------- |
+| `0` | endOfPacket              | —                           |
+| `1` | endOfChanges             | —                           |
+| `2` | skipBytesFew             | 4b count                    |
+| `3` | skipBytesMany            | 8b count                    |
+| `4` | setSequenceOfBytes       | (8b value + 1b continues)×N |
+| `5` | setFewBytesWithValue     | 4b count + 8b value         |
+| `6` | setFewBytesWithLastValue | 4b count                    |
+| `7` | setManyBytesWithValue    | 8b count + 8b value         |
 
 ### Topology Packet Format
 
 Device info block (per device in topology):
+
 - 16 × 7-bit chars: serial number
 - 5 bits: battery level
 - 1 bit: battery charging
 
 Connection info block:
+
 - 7 bits: device1 topology index
 - 5 bits: device1 port (clockwise from top-left)
 - 7 bits: device2 topology index
@@ -199,10 +204,10 @@ Max 6 devices and 24 connections per topology packet. Use extend/end for larger 
 ### Bit Sizes Reference
 
 | Field              | Bits |
-|--------------------|------|
+| ------------------ | ---- |
 | MessageType        | 7    |
 | ProtocolVersion    | 8    |
-| PacketTimestamp     | 32   |
+| PacketTimestamp    | 32   |
 | TimestampOffset    | 5    |
 | TopologyIndex      | 7    |
 | DeviceCount        | 7    |
@@ -214,7 +219,7 @@ Max 6 devices and 24 connections per topology packet. Use extend/end for larger 
 | TouchPosition.x    | 12   |
 | TouchPosition.y    | 12   |
 | TouchPosition.z    | 8    |
-| TouchVelocity.v*   | 8    |
+| TouchVelocity.v\*  | 8    |
 | DeviceCommand      | 9    |
 | ConfigCommand      | 4    |
 | ConfigItemIndex    | 8    |
@@ -233,14 +238,15 @@ Max 6 devices and 24 connections per topology packet. Use extend/end for larger 
 
 ### Device Memory Sizes
 
-| Device Type    | Program + Heap | Stack |
-|----------------|---------------|-------|
-| Pad Block      | 7200 bytes    | 800   |
-| Control Block  | 3000 bytes    | 800   |
+| Device Type   | Program + Heap | Stack |
+| ------------- | -------------- | ----- |
+| Pad Block     | 7200 bytes     | 800   |
+| Control Block | 3000 bytes     | 800   |
 
 ## Key Reference Files
 
 Protocol source (cloned to `~/Downloads/roli-extracted/roli_blocks_basics/`):
+
 - `protocol/roli_BitPackingUtilities.h` — 7-bit packing algorithm (CRITICAL to port correctly)
 - `protocol/roli_BlocksProtocolDefinitions.h` — all enums, constants, bit sizes
 - `protocol/roli_HostPacketBuilder.h` — host→device packet construction
@@ -253,6 +259,7 @@ Protocol source (cloned to `~/Downloads/roli-extracted/roli_blocks_basics/`):
 - `topology/internal/roli_MidiDeviceConnection.cpp` — MIDI I/O wrapper
 
 Extracted ROLI Connect installer (`~/Downloads/roli-extracted/`):
+
 - `rpkg-driver/` — Windows driver package (reference only)
 - `midi-driver/DriverINF` — USB VID/PID mapping
 - `app-asar-unpacked/` — Electron app source (minified JS)
@@ -261,24 +268,31 @@ Extracted ROLI Connect installer (`~/Downloads/roli-extracted/`):
 ## Implementation Phases
 
 ### Phase 1: Protocol Core (no hardware needed)
+
 `protocol/constants.py` → `protocol/checksum.py` → `protocol/packing.py` → `protocol/builder.py` → `protocol/decoder.py` → `protocol/serial.py` + full test suite
 
 ### Phase 2: Device Models
+
 `device/models.py` → `device/registry.py` → `device/config_ids.py`
 
 ### Phase 3: Connection Layer
+
 `device/connection.py` → `topology/detector.py` → `topology/device_group.py` → `topology/manager.py`
 
 ### Phase 4: Daemon + Config
+
 `daemon.py` → `config/schema.py` + `config/loader.py` → `logging.py`
 
 ### Phase 5: CLI
+
 `cli/app.py` → `cli/status.py` → `cli/config_cmd.py` → `cli/led_cmd.py`
 
 ### Phase 6: LED Control + Program Upload
+
 `led/bitmap.py` → `led/patterns.py` → `protocol/data_change.py`
 
 ### Phase 7: Polish
+
 systemd service → udev rules → `cli/service.py` → sd_notify integration
 
 ## Critical Implementation Notes

@@ -18,38 +18,38 @@ The firmware's LittleFoot VM opcode table **differs** from the ROLI JUCE SDK sou
 
 ### Known Working Opcodes
 
-| Byte | SDK Name | Operand | Verified |
-|------|----------|---------|----------|
-| 0x00 | halt | — | ✓ |
-| 0x01 | jump | int16 | ✓ (loop back-jumps work) |
-| 0x03 | jumpIfFalse | int16 | ✓ (loop conditionals work) |
-| 0x05 | retVoid | int8 | ✓ |
-| 0x07 | callNative | int16 | ✓ (makeARGB, fillPixel) |
-| 0x08 | drop | — | ✓ |
-| 0x0B | push0 | — | ✓ |
-| 0x0C | push1 | — | ✓ |
-| 0x0D | push8 | int8 | ✓ |
-| 0x0E | push16 | int16 | ✓ |
-| 0x10 | dup | — | ✓ |
+| Byte | SDK Name    | Operand | Verified                   |
+| ---- | ----------- | ------- | -------------------------- |
+| 0x00 | halt        | —       | ✓                          |
+| 0x01 | jump        | int16   | ✓ (loop back-jumps work)   |
+| 0x03 | jumpIfFalse | int16   | ✓ (loop conditionals work) |
+| 0x05 | retVoid     | int8    | ✓                          |
+| 0x07 | callNative  | int16   | ✓ (makeARGB, fillPixel)    |
+| 0x08 | drop        | —       | ✓                          |
+| 0x0B | push0       | —       | ✓                          |
+| 0x0C | push1       | —       | ✓                          |
+| 0x0D | push8       | int8    | ✓                          |
+| 0x0E | push16      | int16   | ✓                          |
+| 0x10 | dup         | —       | ✓                          |
 
 ### Known Broken Opcodes
 
-| Byte | SDK Name | Result |
-|------|----------|--------|
+| Byte | SDK Name     | Result                                                       |
+| ---- | ------------ | ------------------------------------------------------------ |
 | 0x11 | dupOffset_01 | **ILLEGAL INSTRUCTION** — device logs error, program aborted |
-| 0x40 | getHeapBits | **ILLEGAL INSTRUCTION** — the BitmapLEDProgram uses this |
+| 0x40 | getHeapBits  | **ILLEGAL INSTRUCTION** — the BitmapLEDProgram uses this     |
 
 ### Uncertain / Behaves Differently
 
-| Byte | SDK Name | Observation |
-|------|----------|-------------|
-| 0x12 | dupOffset_02 | Works but produces wrong results — may be dupOffset(int8) consuming next byte as operand, OR dupOffset_02 but stack layout differs from simulation |
-| 0x18 | dupOffset(int8) | Produced blank screen — may not be dupOffset on this firmware |
-| 0x1C | dupFromGlobal | No illegal instruction but globals always returned 0 |
-| 0x1D | dropToGlobal | Same — silently fails |
-| 0x20 | add_int32 | Loop increment works in corner test context |
-| 0x24 | sub_int32 | Loop comparison works |
-| 0x36 | test_lt_int32 | Loop comparison works |
+| Byte | SDK Name        | Observation                                                                                                                                        |
+| ---- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0x12 | dupOffset_02    | Works but produces wrong results — may be dupOffset(int8) consuming next byte as operand, OR dupOffset_02 but stack layout differs from simulation |
+| 0x18 | dupOffset(int8) | Produced blank screen — may not be dupOffset on this firmware                                                                                      |
+| 0x1C | dupFromGlobal   | No illegal instruction but globals always returned 0                                                                                               |
+| 0x1D | dropToGlobal    | Same — silently fails                                                                                                                              |
+| 0x20 | add_int32       | Loop increment works in corner test context                                                                                                        |
+| 0x24 | sub_int32       | Loop comparison works                                                                                                                              |
+| 0x36 | test_lt_int32   | Loop comparison works                                                                                                                              |
 
 ### Untested but Likely Working (0x00-0x10 range)
 
@@ -104,6 +104,7 @@ The original plan: upload a BitmapLEDProgram that reads RGB565 pixel data from t
 **Probe the opcode table.** Write a small test harness that uploads programs using each opcode and checks for "Illegal instruction" log messages. Build the real opcode map, then rewrite BitmapLEDProgram accordingly.
 
 Key unknowns to resolve:
+
 - Is `getHeapByte` (0x3E) or `getHeapInt` (0x3F) available?
 - What is the actual opcode for `dupOffset(int8)`?
 - Do loops work if we use the correct opcodes?
@@ -111,12 +112,12 @@ Key unknowns to resolve:
 
 ## Native Function IDs (Verified Working)
 
-| Signature | ID | Verified |
-|-----------|-----|----------|
-| makeARGB/iiiii | 0x3F83 (16259) | ✓ |
-| fillPixel/viii | 0xC20B (-15861) | ✓ |
-| repaint/v | 0x6F8D (28557) | ✓ (function ID lookup works) |
-| clearDisplay/v | unknown | untested (was in one test but unclear if it ran) |
+| Signature      | ID              | Verified                                         |
+| -------------- | --------------- | ------------------------------------------------ |
+| makeARGB/iiiii | 0x3F83 (16259)  | ✓                                                |
+| fillPixel/viii | 0xC20B (-15861) | ✓                                                |
+| repaint/v      | 0x6F8D (28557)  | ✓ (function ID lookup works)                     |
+| clearDisplay/v | unknown         | untested (was in one test but unclear if it ran) |
 
 ## Program Binary Format (Verified)
 
