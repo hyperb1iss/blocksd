@@ -31,7 +31,7 @@
 
 ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter "API mode." Without it, they show a searching animation and eventually power off. There's no official Linux support.
 
-**blocksd** implements the full ROLI Blocks protocol — device discovery, topology management, API mode keepalive, LED control, touch events, and device configuration — so your Blocks stay alive and useful on Linux.
+**blocksd** implements the full ROLI Blocks protocol: device discovery, topology management, API mode keepalive, LED control, touch events, and device configuration. Your Blocks stay alive and useful on Linux.
 
 ## ✦ Features
 
@@ -43,7 +43,7 @@ ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter 
 | 💡 **LED Control**           | Lightpad / Lightpad M RGB565 bitmap grid, CLI patterns (solid, gradient, rainbow, checkerboard) |
 | 👆 **Touch & Button Events** | Normalized touch data (x/y/z/velocity) and button callbacks                                     |
 | ⚙️ **Device Config**         | Read/write device settings (sensitivity, MIDI channel, scale, etc.)                             |
-| 🔊 **DAW Friendly**          | ALSA multi-client — blocksd and your DAW share MIDI without conflict                            |
+| 🔊 **DAW Friendly**          | ALSA multi-client, blocksd and your DAW share MIDI without conflict                            |
 | 🛡️ **systemd Integration**   | Type=notify service, watchdog heartbeat, udev rules for plug-and-play                           |
 
 ## 📦 Install
@@ -81,9 +81,9 @@ uv run blocksd install
 
 The `install` command sets up:
 
-- **udev rules** — proper permissions for ROLI USB devices (requires sudo)
-- **systemd user service** — auto-starts on login with watchdog monitoring
-- **Security hardening** — sandboxed with `ProtectSystem=strict`, `NoNewPrivileges`, etc.
+- **udev rules**: proper permissions for ROLI USB devices (requires sudo)
+- **systemd user service**: auto-starts on login with watchdog monitoring
+- **Security hardening**: sandboxed with `ProtectSystem=strict`, `NoNewPrivileges`, etc.
 
 ## ⚡ Usage
 
@@ -102,20 +102,20 @@ journalctl --user -u blocksd -f
 When running, you'll see devices connect:
 
 ```
-INFO  blocksd ready — scanning for ROLI devices
+INFO  blocksd ready, scanning for ROLI devices
 INFO  Master serial: LKBC9PZSOH978HOE
 INFO  Topology: 2 devices, 1 connections
-INFO  ✨ Device connected: lumi_keys_block (LKBC9PZSOH978HOE) — battery 31%
-INFO  ✨ Device connected: lightpad_block_m (LPMJW6SWHSPD8H92) — battery 31%
+INFO  ✨ Device connected: lumi_keys_block (LKBC9PZSOH978HOE), battery 31%
+INFO  ✨ Device connected: lightpad_block_m (LPMJW6SWHSPD8H92), battery 31%
 ```
 
 ### Device Status
 
 ```bash
-# Quick scan — shows detected MIDI ports
+# Quick scan, shows detected MIDI ports
 blocksd status
 
-# Full probe — connects to devices, shows type/serial/battery/version
+# Full probe, connects to devices, shows type/serial/battery/version
 blocksd status --probe
 ```
 
@@ -165,13 +165,13 @@ blocksd uninstall                      # remove everything
 
 `blocksd` exposes two APIs for external integration:
 
-**Unix Socket** — low-latency IPC for local clients (e.g. Hypercolor)
+**Unix Socket**: low-latency IPC for local clients (e.g. Hypercolor)
 
 - Socket path: `$XDG_RUNTIME_DIR/blocksd/blocksd.sock`
 - Fallback path: `/tmp/blocksd/blocksd.sock`
 - One socket supports both control messages and high-rate LED frame writes
 
-**WebSocket** — browser and network clients (used by `blocksd ui`)
+**WebSocket**: browser and network clients (used by `blocksd ui`)
 
 - Default: `ws://localhost:9010/ws`
 - Binary LED frame writes + JSON device events
@@ -270,11 +270,11 @@ Host                                          Device
 | Lightpad Block / M      | `0x0900`            | `LPB` / `LPM` | ✅ Tested   |
 | LUMI Keys Block         | `0x0E00`            | `LKB`         | ✅ Tested   |
 | Seaboard Block          | `0x0700`            | `SBB`         | 🔲 Untested |
-| Live Block              | —                   | `LIC`         | 🔲 Untested |
-| Loop Block              | —                   | `LOC`         | 🔲 Untested |
-| Developer Control Block | —                   | `DCB`         | 🔲 Untested |
-| Touch Block             | —                   | `TCB`         | 🔲 Untested |
-| Seaboard RISE 25/49     | `0x0200` / `0x0210` | —             | 🔲 Untested |
+| Live Block              | —                 | `LIC`         | 🔲 Untested |
+| Loop Block              | —                 | `LOC`         | 🔲 Untested |
+| Developer Control Block | —                 | `DCB`         | 🔲 Untested |
+| Touch Block             | —                 | `TCB`         | 🔲 Untested |
+| Seaboard RISE 25/49     | `0x0200` / `0x0210` | —           | 🔲 Untested |
 
 Bitmap LED streaming is currently exposed for Lightpad Block / Lightpad Block M
 only. Other devices are still discoverable and supported by the topology/API
@@ -296,19 +296,19 @@ uv run ty check                # type check
 
 See [VISION.md](VISION.md) for the full vision, use cases, and ideas beyond music.
 
-- [x] **Protocol Core** — 7-bit packing, checksum, SysEx builder/decoder
-- [x] **Device Discovery** — MIDI port scanning, serial number parsing
-- [x] **Topology Management** — multi-device tracking, DNA connections
-- [x] **API Mode Keepalive** — full state machine with correct ping timing
-- [x] **Remote Heap Manager** — ACK tracking, retransmission, heap state sync
-- [x] **LittleFoot Programs** — bytecode assembler, BitmapLEDProgram upload
-- [x] **CLI LED Commands** — `blocksd led solid #ff00ff`, `blocksd led rainbow`
-- [x] **Touch/Button Events** — normalized callbacks with full velocity data
-- [x] **Config Commands** — read/write device settings via CLI
-- [x] **sd_notify Integration** — Type=notify service with watchdog heartbeat
-- [x] **CI/CD** — GitHub Actions, PyPI publishing, automated releases
-- [ ] **D-Bus Interface** — IPC for external applications
-- [ ] **Hypercolor Integration** — ROLI Blocks as an RGB device backend
+- [x] **Protocol Core**: 7-bit packing, checksum, SysEx builder/decoder
+- [x] **Device Discovery**: MIDI port scanning, serial number parsing
+- [x] **Topology Management**: multi-device tracking, DNA connections
+- [x] **API Mode Keepalive**: full state machine with correct ping timing
+- [x] **Remote Heap Manager**: ACK tracking, retransmission, heap state sync
+- [x] **LittleFoot Programs**: bytecode assembler, BitmapLEDProgram upload
+- [x] **CLI LED Commands**: `blocksd led solid #ff00ff`, `blocksd led rainbow`
+- [x] **Touch/Button Events**: normalized callbacks with full velocity data
+- [x] **Config Commands**: read/write device settings via CLI
+- [x] **sd_notify Integration**: Type=notify service with watchdog heartbeat
+- [x] **CI/CD**: GitHub Actions, PyPI publishing, automated releases
+- [ ] **D-Bus Interface**: IPC for external applications
+- [ ] **Hypercolor Integration**: ROLI Blocks as an RGB device backend
 
 ## ⚖️ License
 

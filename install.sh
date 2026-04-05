@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# blocksd installer — installs via uv/pipx and sets up systemd + udev
+# blocksd installer,installs via uv/pipx and sets up systemd + udev
 set -euo pipefail
 
 ELECTRIC_PURPLE='\033[38;2;225;53;255m'
@@ -40,7 +40,7 @@ fi
 
 # ─── Verify ───────────────────────────────────────────────────────
 if ! command -v blocksd &>/dev/null; then
-    warn "blocksd not found on PATH — you may need to add ~/.local/bin to your PATH"
+    warn "blocksd not found on PATH,you may need to add ~/.local/bin to your PATH"
     warn "  export PATH=\"\$HOME/.local/bin:\$PATH\""
 fi
 
@@ -54,7 +54,7 @@ SUBSYSTEM=="sound", ATTR{idVendor}=="2af4", MODE="0666", TAG+="uaccess"'
 UDEV_PATH="/etc/udev/rules.d/99-roli-blocks.rules"
 
 if [[ -f "$UDEV_PATH" ]]; then
-    warn "udev rules already exist at $UDEV_PATH — skipping"
+    warn "udev rules already exist at $UDEV_PATH,skipping"
 else
     echo "$UDEV_RULE" | sudo tee "$UDEV_PATH" >/dev/null
     sudo udevadm control --reload-rules
@@ -73,7 +73,7 @@ BLOCKSD_BIN=$(command -v blocksd 2>/dev/null || echo "$HOME/.local/bin/blocksd")
 
 cat > "$SERVICE_PATH" <<EOF
 [Unit]
-Description=blocksd — ROLI Blocks Linux Daemon
+Description=blocksd: ROLI Blocks Linux Daemon
 Documentation=https://github.com/hyperb1iss/blocksd
 After=sound.target
 

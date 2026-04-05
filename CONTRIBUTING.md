@@ -1,6 +1,6 @@
 # Contributing to blocksd
 
-Contributions welcome! Whether it's fixing a bug, adding device support, or building new features — we'd love your help.
+Contributions welcome! Bug fixes, device support, new features, we'd love your help.
 
 ## Setup
 
@@ -39,32 +39,32 @@ uv run blocksd run -v          # run the daemon (requires hardware)
 
 ## Project Structure
 
-- **`src/blocksd/protocol/`** — Pure protocol logic (packing, builder, decoder). No I/O, fully testable.
-- **`src/blocksd/device/`** — Device models, config IDs, connection layer.
-- **`src/blocksd/topology/`** — Device discovery, lifecycle management, topology tracking.
-- **`src/blocksd/led/`** — LED bitmap grid and pattern generators.
-- **`src/blocksd/littlefoot/`** — LittleFoot VM opcodes, assembler, programs.
-- **`src/blocksd/api/`** — Unix socket + WebSocket server, event broadcasting.
-- **`src/blocksd/web/`** — Web dashboard assets.
-- **`src/blocksd/config/`** — Daemon configuration (Pydantic schema, TOML loader).
-- **`src/blocksd/cli/`** — Typer CLI commands.
-- **`tests/`** — Mirrors source structure.
+- **`src/blocksd/protocol/`**: pure protocol logic (packing, builder, decoder), no I/O, fully testable
+- **`src/blocksd/device/`**: device models, config IDs, connection layer
+- **`src/blocksd/topology/`**: device discovery, lifecycle management, topology tracking
+- **`src/blocksd/led/`**: LED bitmap grid and pattern generators
+- **`src/blocksd/littlefoot/`**: LittleFoot VM opcodes, assembler, programs
+- **`src/blocksd/api/`**: Unix socket + WebSocket server, event broadcasting
+- **`src/blocksd/web/`**: web dashboard assets
+- **`src/blocksd/config/`**: daemon configuration (Pydantic schema, TOML loader)
+- **`src/blocksd/cli/`**: Typer CLI commands
+- **`tests/`**: mirrors source structure
 
 ## Best Areas to Contribute
 
-- **LED patterns** — New visual patterns for Lightpad blocks
-- **Touch event handling** — Higher-level gestures, MIDI mapping
-- **Web dashboard** — Enhance the `blocksd ui` real-time interface
-- **D-Bus interface** — IPC for desktop integration
-- **Device support** — Testing with Seaboard, Live, Loop, or Developer blocks
-- **Documentation** — Usage guides, API examples (see `docs/` for protocol reference)
+- **LED patterns**: new visual patterns for Lightpad blocks
+- **Touch event handling**: higher-level gestures, MIDI mapping
+- **Web dashboard**: enhance the `blocksd ui` real-time interface
+- **D-Bus interface**: IPC for desktop integration
+- **Device support**: testing with Seaboard, Live, Loop, or Developer blocks
+- **Documentation**: usage guides, API examples (see `docs/` for protocol reference)
 
 ## Guidelines
 
 - All code must pass `ruff check`, `ruff format --check`, and `ty check`
-- Add tests for new functionality — the protocol layer especially should have exhaustive coverage
+- Add tests for new functionality, the protocol layer especially should have exhaustive coverage
 - Keep commits focused and descriptive
-- The protocol layer is pure functions with no I/O — keep it that way
+- The protocol layer is pure functions with no I/O, keep it that way
 
 ## Testing Without Hardware
 
