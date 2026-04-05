@@ -13,7 +13,7 @@ app = typer.Typer(
 
 @app.command()
 def run(
-    foreground: bool = typer.Option(True, "--foreground/--daemon", "-f/-d"),
+    foreground: bool = typer.Option(True, "--foreground/--daemon", "-f/-d"),  # noqa: ARG001
     verbose: bool = typer.Option(False, "--verbose", "-v"),
     config: Path | None = typer.Option(default=None, help="Config file path"),  # noqa: B008
 ) -> None:
@@ -100,7 +100,7 @@ def _status_quick(pairs: list) -> None:
     console.print("\n[dim]Use [bold]--probe[/bold] to connect and get full device info.[/dim]")
 
 
-def _status_probe(pairs: list, *, verbose: bool = False) -> None:
+def _status_probe(pairs: list, *, verbose: bool = False) -> None:  # noqa: ARG001
     """Connect briefly to get full device info (serial, battery, topology)."""
     import asyncio
     import contextlib

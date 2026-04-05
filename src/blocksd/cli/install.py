@@ -75,10 +75,11 @@ def _run(cmd: list[str], *, sudo: bool = False, check: bool = True) -> bool:
     if sudo:
         cmd = ["sudo", *cmd]
     try:
-        subprocess.run(cmd, check=check)
-        return True
+        subprocess.run(cmd, check=check)  # noqa: S603
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
+    else:
+        return True
 
 
 @app.command()

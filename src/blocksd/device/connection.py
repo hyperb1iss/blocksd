@@ -48,7 +48,7 @@ class MidiConnection:
         with contextlib.suppress(RuntimeError):
             self._loop.call_soon_threadsafe(self._queue.put_nowait, data)
 
-    async def recv(self, timeout: float | None = None) -> bytes | None:
+    async def recv(self, timeout: float | None = None) -> bytes | None:  # noqa: ASYNC109
         """Receive next SysEx message, or None on timeout."""
         try:
             return await asyncio.wait_for(self._queue.get(), timeout=timeout)
@@ -61,10 +61,11 @@ class MidiConnection:
             return False
         try:
             self._midi_out.send_message(data)
-            return True
         except Exception:
             log.exception("Failed to send MIDI message")
             return False
+        else:
+            return True
 
     def drain(self) -> list[bytes]:
         """Drain all pending messages from the queue (non-blocking)."""

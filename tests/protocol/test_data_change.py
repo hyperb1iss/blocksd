@@ -27,10 +27,10 @@ def decode_commands_from_reader(reader: Packed7BitReader) -> list[tuple]:
         if cmd == DataChangeCommand.END_OF_PACKET:
             commands.append(("end_of_packet",))
             break
-        elif cmd == DataChangeCommand.END_OF_CHANGES:
+        if cmd == DataChangeCommand.END_OF_CHANGES:
             commands.append(("end_of_changes",))
             break
-        elif cmd == DataChangeCommand.SKIP_BYTES_FEW:
+        if cmd == DataChangeCommand.SKIP_BYTES_FEW:
             count = reader.read_bits(BitSize.BYTE_COUNT_FEW)
             commands.append(("skip_few", count))
         elif cmd == DataChangeCommand.SKIP_BYTES_MANY:
@@ -429,4 +429,4 @@ class TestBuildDataChangePacket:
         assert cmds[-1] == ("end_of_changes",)
         # Should contain skip and set commands
         cmd_types = [c[0] for c in cmds]
-        assert any(t.startswith("skip") or t.startswith("set") for t in cmd_types)
+        assert any(t.startswith(("skip", "set")) for t in cmd_types)

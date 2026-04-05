@@ -5,7 +5,7 @@ description = "Linux daemon for ROLI Blocks devices — keeps them alive, contro
 readme = "README.md"
 license = "ISC"
 requires-python = ">=3.13"
-authors = [{ name = "hyperb1iss", email = "hyperb1iss@gmail.com" }]
+authors = [{ name = "Stefanie Jane", email = "stef@hyperbliss.tech" }]
 keywords = ["roli", "blocks", "midi", "lightpad", "seaboard", "linux", "daemon"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -26,11 +26,13 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pytest>=8.3",
-    "pytest-asyncio>=0.25",
+    "pytest>=9.0",
+    "pytest-asyncio>=1.3",
+    "pytest-cov>=7.0",
     "hypothesis>=6.120",
-    "ruff>=0.9",
-    "ty>=0.0.1a7",
+    "ruff>=0.14",
+    "ty>=0.0.10",
+    "pre-commit>=4.0",
 ]
 
 [project.scripts]
@@ -55,14 +57,108 @@ line-length = 100
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM", "TCH", "RUF"]
+select = [
+    "E", "W", "F",     # pycodestyle + pyflakes
+    "I",                # isort
+    "B",                # flake8-bugbear
+    "C4",               # comprehensions
+    "N",                # pep8-naming
+    "UP",               # pyupgrade
+    "A",                # flake8-builtins
+    "SIM",              # simplify
+    "TCH",              # type-checking
+    "RUF",              # ruff-specific
+    "ASYNC",            # flake8-async
+    "PT",               # pytest-style
+    "S",                # security (bandit)
+    "PL",               # pylint
+    "TRY",              # tryceratops
+    "T20",              # print statements
+    "ARG",              # unused-arguments
+    "RET",              # flake8-return
+    "RSE",              # flake8-raise
+    "PIE",              # flake8-pie
+    "PGH",              # pygrep-hooks
+    "BLE",              # blind-except
+    "DTZ",              # datetimez
+    "G",                # logging-format
+    "SLF",              # private-member-access
+    "COM",              # commas
+]
+
+ignore = [
+    "E501",     # line too long (formatter handles)
+    "COM812",   # trailing comma (formatter conflicts)
+    "ISC001",   # implicit string concat (formatter conflicts)
+    "PLR0913",  # too many arguments
+    "PLR2004",  # magic value in comparison
+    "S101",     # assert (needed for tests)
+    "TRY003",   # long exception messages
+    "PLC0415",  # import-outside-top-level (TYPE_CHECKING blocks)
+    "PLR0911",  # too many return statements
+    "PLR0912",  # too many branches
+    "PLR0915",  # too many statements
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",     # assert allowed in tests
+    "S324",     # SHA1 required by WebSocket RFC 6455 in test
+    "ARG001",   # unused function args (fixtures)
+    "ARG002",   # unused method args (mock overrides)
+    "PLR2004",  # magic values in tests
+    "PLW0108",  # lambda used for mock compat
+    "SLF001",   # private member access in tests
+    "PT011",    # pytest.raises too broad
+    "PT018",    # composite assertions
+    "PT019",    # fixture without value as parameter
+    "ASYNC109", # timeout param in mock async (intentional)
+]
+"src/blocksd/api/server.py" = [
+    "BLE001",   # broad except in event loop error boundaries (intentional)
+    "S108",     # /tmp fallback path (XDG_RUNTIME_DIR preferred)
+]
+"src/blocksd/api/http.py" = [
+    "S324",     # SHA1 required by WebSocket RFC 6455
+]
+"src/blocksd/protocol/data_change.py" = [
+    "SLF001",   # module-private helpers accessing _writer on same-module class
+]
+"src/blocksd/sdnotify.py" = [
+    "PLW0603",  # global state is intentional for singleton socket
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["blocksd"]
+force-single-line = false
+combine-as-imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+filterwarnings = ["ignore::DeprecationWarning"]
+markers = [
+    "slow: marks tests as slow",
+    "integration: marks integration tests requiring hardware",
+]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+]
+show_missing = true
 
 [tool.ty.environment]
 python-version = "3.13"

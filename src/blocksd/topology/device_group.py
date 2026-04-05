@@ -488,7 +488,7 @@ class DeviceGroup:
 
     # ── PacketHandler implementation ──────────────────────────────────────
 
-    def on_topology_begin(self, num_devices: int, num_connections: int) -> None:
+    def on_topology_begin(self, num_devices: int, num_connections: int) -> None:  # noqa: ARG002
         self._incoming_devices.clear()
         self._incoming_connections.clear()
 
@@ -557,7 +557,7 @@ class DeviceGroup:
             if (heap := self._heaps.get(uid)) and heap.handle_ack(counter):
                 self._flush_heap(uid, heap, time.monotonic())
 
-    def on_firmware_update_ack(self, device_index: int, code: int, detail: int) -> None:
+    def on_firmware_update_ack(self, device_index: int, code: int, detail: int) -> None:  # noqa: ARG002
         uid = self._uid_from_index(device_index)
         if uid:
             self._update_api_ping(uid)

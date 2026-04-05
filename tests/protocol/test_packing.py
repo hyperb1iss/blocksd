@@ -1,7 +1,6 @@
 """Tests for 7-bit packing/unpacking — the most critical protocol code."""
 
-from hypothesis import given
-from hypothesis import strategies as st
+from hypothesis import given, strategies as st
 
 from blocksd.protocol.packing import Packed7BitReader, Packed7BitWriter
 

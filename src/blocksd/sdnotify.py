@@ -36,10 +36,11 @@ def _init() -> bool:
         sock.connect(addr)
         _socket = sock
         _address = addr
-        return True
     except OSError:
         log.debug("Failed to connect to NOTIFY_SOCKET")
         return False
+    else:
+        return True
 
 
 def notify(state: str) -> bool:
@@ -57,9 +58,10 @@ def notify(state: str) -> bool:
     assert _socket is not None
     try:
         _socket.sendall(state.encode())
-        return True
     except OSError:
         return False
+    else:
+        return True
 
 
 def ready() -> bool:
