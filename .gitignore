@@ -19,3 +19,8 @@ htmlcov/
 # Web UI
 web/node_modules/
 src/blocksd/web/static/
+
+# Docs
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/

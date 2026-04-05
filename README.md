@@ -24,6 +24,7 @@
   <a href="#-architecture">Architecture</a> •
   <a href="#-supported-devices">Devices</a> •
   <a href="#-development">Development</a> •
+  <a href="https://hyperb1iss.github.io/blocksd/">Docs</a> •
   <a href="VISION.md">Vision</a>
 </p>
 
@@ -190,7 +191,7 @@ The quick rules:
 - Prefer a separate subscription socket if you also want events; outbound NDJSON
   events and 1-byte binary frame acks share the same connection
 
-See [docs/API.md](docs/API.md) for the full protocol reference, examples, and
+See the [API reference](https://hyperb1iss.github.io/blocksd/reference/api) for the full protocol reference, examples, and
 Hypercolor-oriented integration notes.
 
 ## 🏗️ Architecture
