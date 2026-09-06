@@ -5,6 +5,11 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
+        exclude: (^|/)pnpm-lock\.yaml$
+      - id: check-yaml
+        name: Check pnpm lockfile YAML
+        files: (^|/)pnpm-lock\.yaml$
+        args: [--allow-multiple-documents]
       - id: check-toml
       - id: check-added-large-files
         args: ["--maxkb=1000"]

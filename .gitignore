@@ -14,10 +14,12 @@ build/
 *.so
 .coverage
 htmlcov/
+coverage.xml
 .hypothesis/
 
 # Web UI
 web/node_modules/
+*.tsbuildinfo
 src/blocksd/web/static/
 
 # Docs
