@@ -1,4 +1,4 @@
-# 🔮 blocksd:Vision & Use Cases
+# 🔮 blocksd: Vision & Use Cases
 
 > _These are precision touch surfaces with pressure sensitivity, LED feedback, and mesh networking. Why limit them to music?_
 
@@ -97,6 +97,8 @@ A physical, tactile interface for home automation.
 
 ---
 
+These are proposed applications, not bundled features. The current daemon skips LittleFoot renderer upload, so LED-based ideas depend on resolving firmware compatibility first. Unix socket and WebSocket APIs already provide discovery and event subscriptions.
+
 ## 🧪 Experimental Ideas
 
 ### Multi-Block Configurations
@@ -130,7 +132,7 @@ The devices run LittleFoot, a simple bytecode VM. Programs uploaded to the devic
 
 ### WebSocket / HTTP API
 
-Expose device state and control over HTTP for browser-based interfaces:
+The HTTP dashboard and WebSocket device API exist today. Webhooks, classroom orchestration, and visible LED rendering still need further work:
 
 - **Web dashboard**: real-time device status, battery, topology visualization
 - **Remote LED control**: paint on the grid from a phone browser
@@ -153,7 +155,7 @@ Expose device state and control over HTTP for browser-based interfaces:
 - [x] **systemd/udev**: user service, device rules, install/uninstall CLI
 - [x] **Remote Heap Manager**: ACK-tracked heap state, retransmission, in-flight budgets
 - [x] **LittleFoot Assembler**: bytecode assembler with label resolution and FNV1a function hashing
-- [x] **CLI LED Commands**: `blocksd led solid #ff00ff`, rainbow, gradient, checkerboard
+- [x] **CLI LED Commands**: `blocksd led solid '#ff00ff'`, rainbow, gradient, checkerboard
 - [x] **Touch & Button Events**: normalized pressure/velocity callbacks
 - [x] **Config Commands**: device settings read/write via CLI
 - [x] **sd_notify Integration**: Type=notify service with watchdog heartbeat
@@ -187,12 +189,12 @@ ROLI still actively ships and supports Blocks on Windows and macOS, but Linux ge
 
 blocksd brings full Blocks support to Linux. With a clean protocol implementation and a daemon that handles the lifecycle, these devices become a platform for whatever you can imagine, on the OS of your choice.
 
-The 15×15 LED grid on a Lightpad is small. But it's physical, tactile, and sitting right there on your desk. Sometimes the most useful display isn't the one with the most pixels:it's the one you can reach out and touch.
+The 15×15 LED grid on a Lightpad is small. But it's physical, tactile, and sitting right there on your desk. Sometimes the most useful display isn't the one with the most pixels: it's the one you can reach out and touch.
 
 ---
 
 <div align="center">
 
-_Blocks on Linux:because your OS shouldn't limit your hardware._
+_Blocks on Linux: because your OS shouldn't limit your hardware._
 
 </div>

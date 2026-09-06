@@ -1,6 +1,6 @@
 # LittleFoot VM
 
-ROLI Blocks devices run LittleFoot, a bytecode virtual machine baked into the firmware. Programs uploaded to the device execute locally at native speed, enabling LED rendering and touch processing without USB round-trips. This is how ROLI's own software achieves responsive LED feedback: the host writes pixel data to the device heap, and a LittleFoot program reads it and calls `fillPixel()` on each repaint cycle.
+ROLI Blocks devices run LittleFoot, a bytecode virtual machine baked into the firmware. Programs uploaded to the device execute locally in the firmware VM, enabling LED rendering and touch processing without USB round-trips. This is how ROLI's own software achieves responsive LED feedback: the host writes pixel data to the device heap, and a LittleFoot program reads it and calls `fillPixel()` on each repaint cycle.
 
 ## Architecture
 
@@ -43,7 +43,7 @@ These functions are called via the `callNative` opcode with the function's 16-bi
 
 ## BitmapLEDProgram
 
-The primary use case for LittleFoot in blocksd is the BitmapLEDProgram: a 94-byte repaint routine that reads RGB565 pixel data from the heap and calls `fillPixel()` for each of the 225 pixels on the Lightpad's 15x15 grid.
+The primary use case for LittleFoot in blocksd is the BitmapLEDProgram: a 100-byte repaint routine that reads RGB565 pixel data from the heap and calls `fillPixel()` for each of the 225 pixels on the Lightpad's 15x15 grid.
 
 This is the same approach used by the ROLI SDK. The host writes pixel data to the device heap via SharedDataChange, and the LittleFoot program renders it on each repaint cycle.
 
@@ -80,7 +80,7 @@ The firmware's opcode table differs from the ROLI JUCE SDK source. Opcodes `0x11
 
 ### Workaround
 
-blocksd currently bypasses LittleFoot entirely for LED control. Instead of uploading a repaint program and writing pixel data to the heap, the daemon uses unrolled `fillPixel` calls (225 per frame) via SharedDataChange. This is less efficient but works reliably on all tested firmware versions.
+An unrolled `fillPixel` test program exists in the source, but the loader returns before uploading it. The daemon currently uploads neither that fallback nor BitmapLEDProgram. The LED frame API still accepts and transfers RGB565 heap data; a successful frame acknowledgement confirms acceptance by the daemon, not visible rendering. A compatible renderer must be uploaded before heap changes can reliably drive the display.
 
 ## Key Bugs Discovered
 
@@ -94,7 +94,7 @@ Messages addressed to a DNA-connected Lightpad weren't delivered unless the USB-
 
 ### Initial TOS Value
 
-The VM initializes `tos = 0` before calling `repaint()`. The first push operation flushes this value onto the stack, creating an extra entry that shifts all `dup_offset` references. Worked around with unrolled code.
+The VM initializes `tos = 0` before calling `repaint()`. The first push operation flushes this value onto the stack, creating an extra entry that shifts all `dup_offset` references. Historical probes used unrolled code; the daemon does not currently upload that code.
 
 ## Future Work
 

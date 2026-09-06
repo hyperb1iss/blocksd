@@ -4,7 +4,7 @@ layout: home
 hero:
   name: blocksd
   text: ROLI Blocks on Linux
-  tagline: "Full ROLI protocol stack, reverse-engineered from scratch. Topology discovery, keepalive, LED bitmap streaming, pressure-sensitive touch, device configuration. Your Blocks, finally alive on Linux."
+  tagline: "ROLI Blocks host protocol, implemented from reference code. Topology discovery, keepalive, LED bitmap streaming, pressure-sensitive touch, device configuration. Your Blocks, finally alive on Linux."
   actions:
     - theme: brand
       text: Get Started

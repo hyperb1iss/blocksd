@@ -16,11 +16,11 @@ The daemon scans for ROLI devices, activates API mode, and maintains keepalive p
 
 When running under systemd, the daemon sends `READY=1` via sd_notify and periodic watchdog heartbeats.
 
-| Flag                      | Short     | Description                      |
-| ------------------------- | --------- | -------------------------------- |
-| `--verbose`               | `-v`      | Enable debug logging             |
-| `--foreground / --daemon` | `-f / -d` | Run mode (foreground is default) |
-| `--config`                |           | Path to TOML config file         |
+| Flag                      | Short     | Description                                        |
+| ------------------------- | --------- | -------------------------------------------------- |
+| `--verbose`               | `-v`      | Enable debug logging                               |
+| `--foreground / --daemon` | `-f / -d` | Accepted for compatibility; both run in foreground |
+| `--config`                |           | Path to TOML config file                           |
 
 ## `blocksd ui`
 
@@ -59,7 +59,7 @@ The quick scan lists MIDI ports matching ROLI's naming convention. The `--probe`
 
 ## `blocksd led`
 
-Control the 15x15 LED grid on Lightpad Block and Lightpad Block M. These commands connect to the running daemon via the Unix socket API, so the daemon must be running first.
+Control the 15x15 LED grid on Lightpad Block and Lightpad Block M. These commands start their own MIDI discovery and keepalive session, apply the pattern as devices connect, and remain running until Ctrl+C. Stop any existing daemon first. Program upload is disabled, so heap writes do not guarantee visible LED output (see [LittleFoot](../architecture/littlefoot)).
 
 ### `blocksd led solid`
 
@@ -72,11 +72,11 @@ blocksd led solid ff00ff             # hash is optional
 
 ### `blocksd led rainbow`
 
-Sweep a rainbow gradient across the grid.
+Generate a static rainbow gradient across the grid.
 
 ```bash
 blocksd led rainbow
-blocksd led rainbow --brightness 128 # dimmer rainbow (0-255)
+blocksd led rainbow --brightness 0.5 # dimmer rainbow (0.0-1.0)
 ```
 
 ### `blocksd led gradient`
@@ -93,7 +93,7 @@ blocksd led gradient ff0000 0000ff --vertical    # vertical (top → bottom)
 Draw a checkerboard pattern.
 
 ```bash
-blocksd led checkerboard ff0000 00ff00             # 2x2 squares (default)
+blocksd led checkerboard ff0000 00ff00             # 1x1 squares (default)
 blocksd led checkerboard ff0000 00ff00 --size 3    # 3x3 squares
 blocksd led checkerboard ff0000 00ff00 --size 5    # 5x5 squares
 ```
@@ -108,7 +108,7 @@ blocksd led off
 
 ## `blocksd config`
 
-Read and write device configuration values. Connects to the running daemon.
+Read and write device configuration values through a separate MIDI session lasting about eight seconds. Stop any running daemon first and restart it afterward. The `get` command reports the value cached when discovery fires; an early `not reported` result does not establish that the device lacks that setting. For an existing daemon, use the API `config_get` and `config_set` requests.
 
 ### `blocksd config list`
 
@@ -141,7 +141,7 @@ Set up systemd service and udev rules. The udev rule installation requires sudo.
 ```bash
 blocksd install                  # full setup (udev + systemd + auto-start)
 blocksd install --no-udev        # skip udev rules
-blocksd install --no-enable      # install service but don't enable on boot
+blocksd install --no-enable      # write/reload service without enabling or restarting
 blocksd install --no-service     # skip systemd service entirely
 ```
 
@@ -154,7 +154,7 @@ This creates:
 
 ## `blocksd uninstall`
 
-Remove the systemd service and udev rules.
+Remove the systemd service and udev rules. The Python package and user configuration remain; remove a uv tool installation separately with `uv tool uninstall blocksd`.
 
 ```bash
 blocksd uninstall

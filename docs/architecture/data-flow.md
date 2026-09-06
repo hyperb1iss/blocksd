@@ -69,7 +69,7 @@ The LED write path is the most performance-sensitive data flow:
 5. **Data change encoding**: the diff is encoded as skip/set/RLE commands
 6. **Packet building**: commands are 7-bit packed into a `sharedDataChange` SysEx packet
 7. **MIDI write**: the packet is sent over USB MIDI
-8. **ACK tracking**: the daemon waits for a `packetACK` before sending the next diff
+8. **ACK tracking**: the daemon waits for a `packetACK` to confirm in-flight packets; multiple packets can be outstanding within the heap manager's budget
 9. **Coalescing**: if new frames arrive while a write is in-flight, the heap manager merges them into the latest target state rather than queuing each frame
 
 ### Frame Coalescing
@@ -84,7 +84,7 @@ graph TD
     DEV -->|ACK| NEXT[Next diff from<br/>current target]
 ```
 
-When the client sends frames faster than the device can accept them, the heap manager doesn't queue them up. It always diffs against the latest target state, which means intermediate frames are automatically skipped. The device always converges to the most recent frame the client sent.
+When the client sends frames faster than the device can accept them, the heap manager doesn't queue them up. It always diffs against the latest target state, which means intermediate frames are automatically skipped. The target heap converges as packets are acknowledged. Visible rendering also requires a compatible LittleFoot program, which the current daemon does not upload.
 
 ## Keepalive Flow
 
@@ -94,11 +94,11 @@ graph LR
     BUILD --> SEND[Send SysEx]
     SEND --> WAIT[Wait for ACK]
     WAIT -->|ACK received| TIMER
-    WAIT -->|5000ms timeout| DEAD[Device Timeout]
+    WAIT -->|6000ms timeout| DEAD[Device Timeout]
     DEAD --> CLEANUP[Remove Device]
 ```
 
-The keepalive ping is a simple `deviceCommandMessage` with command `0x03`. The device must respond with a `packetACK` within 5 seconds or blocksd considers it disconnected.
+The keepalive ping is a simple `deviceCommandMessage` with command `0x03`. The device must respond with a `packetACK` within 6 seconds or blocksd considers it disconnected (the firmware has its own 5-second API mode timeout).
 
 ## Protocol Pipeline Summary
 

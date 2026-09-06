@@ -36,7 +36,7 @@ just docs-build         # documentation production build
 just build-check        # build and verify the installed distribution
 ```
 
-Run the daemon in a separate terminal for dashboard development:
+Stop any installed blocksd service before starting a development daemon. Run the daemon in a separate terminal for dashboard development:
 
 ```bash
 uv run --locked blocksd ui --no-browser
@@ -47,6 +47,8 @@ The live daemon controls connected hardware. The Python test suite uses simulate
 The source of truth for Python tool versions is `uv.lock`, including the local Ruff hooks. Installs and checks use locked resolution so a stale manifest fails visibly. JavaScript installs use `--frozen-lockfile`. These follow the [uv locking model](https://docs.astral.sh/uv/concepts/projects/sync/) and each project's committed pnpm lockfile.
 
 Use `just fix` for Python lint fixes and formatting, `pnpm --dir web format` for the dashboard, and `just fmt-docs` for documentation. Formatting is explicit; normal checks do not rewrite source.
+
+The LED and config CLI commands currently open their own MIDI sessions. The daemon skips LittleFoot renderer upload, so tests of frame acceptance do not establish visible LED output. Timing fields in DaemonConfig are parsed but not forwarded to the topology runtime. Keep documentation and release notes explicit about these limitations.
 
 ## Architecture
 
@@ -89,3 +91,9 @@ pnpm --dir docs audit
 The docs site pins VitePress to an explicit prerelease while that supported dependency graph is needed. Review its release notes and build the site before changing the pin. Dependabot proposes weekly Python, JavaScript and GitHub Actions updates; action references use commit SHAs.
 
 Keep commits focused, include regression tests for behavior changes, and document any hardware verification separately from automated test results.
+
+## Releases
+
+Run `just check`, merge the changes, then dispatch Release with an explicit version (for example, `0.5.0`). Use its `dry_run` option to exercise preparation without tagging or publishing. The publication workflow generates release notes with git-iris using the Anthropic provider and `claude-opus-5`. Review the generated notes for accurate upgrade instructions and hardware limitations.
+
+The release workflow updates package metadata, builds and verifies distributions, creates a tag, and dispatches publication. The GitHub release includes the wheel, source archive, `install.sh`, and `SHA256SUMS`; PyPI publication uses trusted publishing. Check the release and publish workflow results before announcing availability. The latest installer URL follows the latest GitHub release, while `--version` selects the package version from PyPI.

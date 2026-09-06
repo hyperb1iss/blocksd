@@ -1,10 +1,10 @@
-# blocksd — ROLI Blocks Linux Daemon
+# blocksd: ROLI Blocks Linux Daemon
 
 ## Project Overview
 
-Linux daemon that implements the ROLI Blocks protocol to keep devices alive, control LEDs, and manage topology. ROLI devices require an active host-side handshake over MIDI SysEx to enter "API mode" — without it, they show a "searching" animation and eventually power off.
+Linux daemon that implements the ROLI Blocks protocol to keep devices alive, control LEDs, and manage topology. ROLI devices require an active host-side handshake over MIDI SysEx to enter "API mode": without it, they show a "searching" animation and eventually power off.
 
-**Stack:** Python 3.13, asyncio, python-rtmidi, Typer, Rich, Pydantic
+**Stack:** Python 3.13+, asyncio, python-rtmidi, Typer, Rich, Pydantic
 **Package Manager:** uv
 **Linter:** ruff
 **Type Checker:** ty
@@ -88,7 +88,7 @@ TOPOLOGY_INDEX_BROADCAST = 63
 API_MODE_PING_TIMEOUT_MS = 5000
 ```
 
-### Message Types — Device → Host
+### Message Types: Device → Host
 
 | ID     | Name                   | Payload                                         |
 | ------ | ---------------------- | ----------------------------------------------- |
@@ -111,7 +111,7 @@ API_MODE_PING_TIMEOUT_MS = 5000
 | `0x28` | programEventMessage    | 3 × 32b integers                                |
 | `0x30` | logMessage             | string data                                     |
 
-### Message Types — Host → Device
+### Message Types: Host → Device
 
 | ID     | Name                 | Payload                            |
 | ------ | -------------------- | ---------------------------------- |
@@ -154,8 +154,8 @@ API_MODE_PING_TIMEOUT_MS = 5000
 
 | ID  | Name                     | Extra bits                  |
 | --- | ------------------------ | --------------------------- |
-| `0` | endOfPacket              | —                           |
-| `1` | endOfChanges             | —                           |
+| `0` | endOfPacket              | :                           |
+| `1` | endOfChanges             | :                           |
 | `2` | skipBytesFew             | 4b count                    |
 | `3` | skipBytesMany            | 8b count                    |
 | `4` | setSequenceOfBytes       | (8b value + 1b continues)×N |
@@ -247,59 +247,39 @@ Max 6 devices and 24 connections per topology packet. Use extend/end for larger 
 
 Protocol source (cloned to `~/Downloads/roli-extracted/roli_blocks_basics/`):
 
-- `protocol/roli_BitPackingUtilities.h` — 7-bit packing algorithm (CRITICAL to port correctly)
-- `protocol/roli_BlocksProtocolDefinitions.h` — all enums, constants, bit sizes
-- `protocol/roli_HostPacketBuilder.h` — host→device packet construction
-- `protocol/roli_HostPacketDecoder.h` — device→host packet parsing
-- `protocol/roli_BlockModels.h` — device type definitions and capabilities
-- `topology/internal/roli_ConnectedDeviceGroup.cpp` — full device lifecycle state machine
-- `topology/internal/roli_BlockSerialReader.cpp` — serial number request/parse
-- `topology/internal/roli_MIDIDeviceDetector.cpp` — MIDI port scanning/matching
-- `topology/internal/roli_Detector.cpp` — top-level detection loop
-- `topology/internal/roli_MidiDeviceConnection.cpp` — MIDI I/O wrapper
+- `protocol/roli_BitPackingUtilities.h`: 7-bit packing algorithm (CRITICAL to port correctly)
+- `protocol/roli_BlocksProtocolDefinitions.h`: all enums, constants, bit sizes
+- `protocol/roli_HostPacketBuilder.h`: host→device packet construction
+- `protocol/roli_HostPacketDecoder.h`: device→host packet parsing
+- `protocol/roli_BlockModels.h`: device type definitions and capabilities
+- `topology/internal/roli_ConnectedDeviceGroup.cpp`: full device lifecycle state machine
+- `topology/internal/roli_BlockSerialReader.cpp`: serial number request/parse
+- `topology/internal/roli_MIDIDeviceDetector.cpp`: MIDI port scanning/matching
+- `topology/internal/roli_Detector.cpp`: top-level detection loop
+- `topology/internal/roli_MidiDeviceConnection.cpp`: MIDI I/O wrapper
 
 Extracted ROLI Connect installer (`~/Downloads/roli-extracted/`):
 
-- `rpkg-driver/` — Windows driver package (reference only)
-- `midi-driver/DriverINF` — USB VID/PID mapping
-- `app-asar-unpacked/` — Electron app source (minified JS)
-- `app/resources/app/resources/extra/firmware/default/*.littlefoot` — device firmware
+- `rpkg-driver/`: Windows driver package (reference only)
+- `midi-driver/DriverINF`: USB VID/PID mapping
+- `app-asar-unpacked/`: Electron app source (minified JS)
+- `app/resources/app/resources/extra/firmware/default/*.littlefoot`: device firmware
 
-## Implementation Phases
+## Current Implementation and Checks
 
-### Phase 1: Protocol Core (no hardware needed)
+Protocol, device, topology, daemon, API, CLI, and dashboard layers are implemented. API transports share validation in `api/commands.py`; each server owns its subscriptions and brightness state. The daemon owns background task shutdown and partial-startup cleanup.
 
-`protocol/constants.py` → `protocol/checksum.py` → `protocol/packing.py` → `protocol/builder.py` → `protocol/decoder.py` → `protocol/serial.py` + full test suite
+CLI commands live in `cli/app.py`, `cli/led.py`, `cli/config.py`, and `cli/install.py`. LED/config commands open independent MIDI sessions; they are not socket clients. Stop the service before running them.
 
-### Phase 2: Device Models
+LittleFoot program upload is disabled, including the unreachable unrolled fill fallback. Accepted LED frames confirm heap writes, not visible rendering. Config timing fields are not forwarded to the runtime.
 
-`device/models.py` → `device/registry.py` → `device/config_ids.py`
-
-### Phase 3: Connection Layer
-
-`device/connection.py` → `topology/detector.py` → `topology/device_group.py` → `topology/manager.py`
-
-### Phase 4: Daemon + Config
-
-`daemon.py` → `config/schema.py` + `config/loader.py` → `logging.py`
-
-### Phase 5: CLI
-
-`cli/app.py` → `cli/status.py` → `cli/config_cmd.py` → `cli/led_cmd.py`
-
-### Phase 6: LED Control + Program Upload
-
-`led/bitmap.py` → `led/patterns.py` → `protocol/data_change.py`
-
-### Phase 7: Polish
-
-systemd service → udev rules → `cli/service.py` → sd_notify integration
+Use `just install` for locked Python, dashboard, and documentation dependencies. Run `just check` for Python lint/types/tests, dashboard checks, documentation build, and installed-wheel verification. Dashboard and docs use pnpm. See CONTRIBUTING.md for individual commands and release requirements.
 
 ## Critical Implementation Notes
 
-- **7-bit packing is the #1 risk** — must be tested exhaustively with round-trips and golden vectors from the C++ implementation
-- **Ping timing is critical** — 5000ms timeout means we need reliable <400ms ping intervals. Use dedicated asyncio tasks, not shared timers
-- **rtmidi callbacks arrive on a separate thread** — marshal to asyncio via `loop.call_soon_threadsafe()` or `asyncio.Queue`
-- **ALSA handles multi-client MIDI natively** — we don't block DAW access
-- **Device detection**: match MIDI port names containing "BLOCK" or "Block", validate with USB VID `0x2AF4` via sysfs as fallback
+- **7-bit packing is the #1 risk**: must be tested exhaustively with round-trips and golden vectors from the C++ implementation
+- **Ping timing is critical**: 5000ms timeout means we need reliable <400ms ping intervals. Use dedicated asyncio tasks, not shared timers
+- **rtmidi callbacks arrive on a separate thread**: marshal to asyncio via `loop.call_soon_threadsafe()` or `asyncio.Queue`
+- **ALSA handles multi-client MIDI natively**: we don't block DAW access
+- **Device detection**: match MIDI port names containing "BLOCK" or "Block" and pair normalized input/output names; no sysfs fallback exists
 - **Incoming packet processing**: strip SysEx header (5 bytes), first byte after header is device index, remaining bytes are payload + checksum (last byte). Validate checksum on payload bytes, then create `Packed7BitReader` from payload (excluding checksum)

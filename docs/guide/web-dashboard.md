@@ -11,7 +11,7 @@ blocksd ui --port 8080           # custom port
 
 This starts the daemon with the web server and opens your browser to the dashboard. The web UI communicates with blocksd over WebSocket for live updates.
 
-You can also enable the web server permanently by setting `web.enabled = true` in your config file, so it starts automatically with `blocksd run`.
+The web server is enabled by default (`web_enabled = true` under `[daemon]` in the config file). If the systemd service or a foreground daemon is already running, open `http://localhost:9010` directly. The `ui` command starts another daemon; it does not attach to the existing service.
 
 ## Dashboard Features
 
