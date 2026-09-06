@@ -3,10 +3,12 @@
 import asyncio
 from unittest.mock import Mock
 
+import pytest
+
 from blocksd.topology.detector import MidiPortPair
 from blocksd.topology.manager import TopologyManager
 
-PORT = MidiPortPair(0, 0, "port")
+PORT = MidiPortPair(0, 0, "port").key
 
 
 async def test_old_completion_preserves_replacement_group():
@@ -81,10 +83,14 @@ async def test_shutdown_does_not_cancel_in_progress_group_cleanup():
     assert cleaned.is_set()
 
 
-async def test_duplicate_names_keep_independent_groups(monkeypatch):
+@pytest.mark.parametrize("removed_index", [0, 1])
+async def test_duplicate_names_keep_independent_groups(monkeypatch, removed_index):
     from blocksd.topology import manager as module
 
-    pairs = [MidiPortPair(0, 0, "Lightpad BLOCK"), MidiPortPair(1, 1, "Lightpad BLOCK")]
+    pairs = [
+        MidiPortPair(0, 0, "Lightpad BLOCK", (10, 20)),
+        MidiPortPair(1, 1, "Lightpad BLOCK", (11, 21)),
+    ]
     monkeypatch.setattr(module, "scan_for_blocks", lambda: list(pairs))
 
     async def run_group(_self):
@@ -100,19 +106,24 @@ async def test_duplicate_names_keep_independent_groups(monkeypatch):
         assert open_port.call_count == 2
         await manager._scan_cycle()
         assert open_port.call_count == 2
-        pairs.pop()
+        pairs.pop(removed_index)
+        survivor = pairs[0]
+        original_group = manager._groups[survivor.key]
+        pairs[:] = [MidiPortPair(0, 0, survivor.name, survivor.endpoint_ids)]
         await manager._scan_cycle()
         assert len(manager.groups) == 1
-        assert pairs[0] in manager._groups
+        assert manager._groups[survivor.key] is original_group
+        assert open_port.call_count == 2
     finally:
         await manager._shutdown()
 
 
-async def test_reindexed_port_releases_old_handle_before_reopening(monkeypatch):
+@pytest.mark.parametrize("ids", [None, (10, 20)])
+async def test_reindexed_port_preserves_live_handle(monkeypatch, ids):
     from blocksd.topology import manager as module
 
-    old_pair = MidiPortPair(1, 1, "Lightpad BLOCK")
-    new_pair = MidiPortPair(0, 0, "Lightpad BLOCK")
+    old_pair = MidiPortPair(1, 1, "Lightpad BLOCK", ids)
+    new_pair = MidiPortPair(0, 0, "Lightpad BLOCK", ids)
     pairs = [old_pair]
     closed = asyncio.Event()
     started = asyncio.Event()
@@ -125,11 +136,7 @@ async def test_reindexed_port_releases_old_handle_before_reopening(monkeypatch):
             await asyncio.sleep(0)
             closed.set()
 
-    def open_port(*_args, **_kwargs):
-        if pairs == [new_pair]:
-            assert closed.is_set()
-        return Mock()
-
+    open_port = Mock(return_value=Mock())
     monkeypatch.setattr(module, "scan_for_blocks", lambda: list(pairs))
     monkeypatch.setattr(module, "open_connection", open_port)
     monkeypatch.setattr(module.DeviceGroup, "run", run_group)
@@ -137,8 +144,11 @@ async def test_reindexed_port_releases_old_handle_before_reopening(monkeypatch):
     try:
         await manager._scan_cycle()
         await started.wait()
+        original_group = manager._groups[old_pair.key]
         pairs[:] = [new_pair]
         await manager._scan_cycle()
-        assert set(manager._groups) == {new_pair}
+        assert manager._groups[new_pair.key] is original_group
+        assert not closed.is_set()
+        assert open_port.call_count == 1
     finally:
         await manager._shutdown()
