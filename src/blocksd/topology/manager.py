@@ -34,8 +34,8 @@ class TopologyManager:
     """
 
     def __init__(self) -> None:
-        self._groups: dict[str, _GroupEntry] = {}  # port name → entry
-        self._tasks: dict[str, asyncio.Task[None]] = {}
+        self._groups: dict[MidiPortPair, _GroupEntry] = {}
+        self._tasks: dict[MidiPortPair, asyncio.Task[None]] = {}
         self._running_tasks: set[asyncio.Task[None]] = set()
         self.on_device_added: list[Callable[[DeviceInfo], None]] = []
         self.on_device_removed: list[Callable[[DeviceInfo], None]] = []
@@ -104,16 +104,20 @@ class TopologyManager:
             log.exception("MIDI scan failed")
             return
 
-        detected_names = {pair.name for pair in detected}
+        detected_pairs = set(detected)
 
         # Remove groups whose ports disappeared
-        stale = [name for name in self._groups if name not in detected_names]
-        for name in stale:
-            self._remove_group(name)
+        stale = [pair for pair in self._groups if pair not in detected_pairs]
+        retiring = [self._tasks[pair] for pair in stale if pair in self._tasks]
+        for pair in stale:
+            self._remove_group(pair)
+        # Reindexed ports may still own native handles until cancellation completes.
+        # Release them before opening replacements that refer to the same device.
+        await asyncio.gather(*retiring, return_exceptions=True)
 
         # Add groups for newly detected ports
         for pair in detected:
-            if pair.name not in self._groups:
+            if pair not in self._groups:
                 self._add_group(pair)
 
     def _add_group(self, pair: MidiPortPair) -> None:
@@ -135,32 +139,32 @@ class TopologyManager:
 
         task = asyncio.create_task(group.run(), name=f"group:{pair.name}")
         self._running_tasks.add(task)
-        task.add_done_callback(lambda t, n=pair.name: self._on_group_done(n, t))
+        task.add_done_callback(lambda t, p=pair: self._on_group_done(p, t))
 
-        self._groups[pair.name] = _GroupEntry(group, pair)
-        self._tasks[pair.name] = task
+        self._groups[pair] = _GroupEntry(group, pair)
+        self._tasks[pair] = task
         log.info("Created device group for %s", pair.name)
 
-    def _remove_group(self, name: str) -> None:
+    def _remove_group(self, pair: MidiPortPair) -> None:
         """Cancel and clean up a device group."""
-        if task := self._tasks.pop(name, None):
+        if task := self._tasks.pop(pair, None):
             task.cancel()
-        self._groups.pop(name, None)
-        log.info("Removed device group for %s", name)
+        self._groups.pop(pair, None)
+        log.info("Removed device group for %s", pair.name)
 
-    def _on_group_done(self, name: str, task: asyncio.Task[None]) -> None:
+    def _on_group_done(self, pair: MidiPortPair, task: asyncio.Task[None]) -> None:
         """Handle a group task completing (disconnection or failure)."""
         self._running_tasks.discard(task)
         # A disconnected port may already have a replacement group by this point.
-        if self._tasks.get(name) is task:
-            self._groups.pop(name, None)
-            self._tasks.pop(name, None)
+        if self._tasks.get(pair) is task:
+            self._groups.pop(pair, None)
+            self._tasks.pop(pair, None)
         if task.cancelled():
             return
         if error := task.exception():
-            log.error("Device group %s failed: %s", name, error)
+            log.error("Device group %s failed: %s", pair.name, error)
         else:
-            log.info("Device group %s finished", name)
+            log.info("Device group %s finished", pair.name)
 
     async def _shutdown(self) -> None:
         """Join active and retiring groups before relinquishing MIDI ownership."""
