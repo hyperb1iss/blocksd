@@ -1,0 +1,49 @@
+class Blocksd < Formula
+  include Language::Python::Virtualenv
+
+  desc "ROLI Blocks device discovery, keepalive, and control"
+  homepage "https://github.com/hyperb1iss/blocksd"
+  url "https://github.com/hyperb1iss/blocksd/releases/download/v@VERSION@/blocksd-@VERSION@.tar.gz"
+  version "@VERSION@"
+  sha256 "@SHA256@"
+  license "ISC"
+
+  depends_on "cmake" => :build
+  depends_on "pkgconf" => :build
+  depends_on "rust" => :build
+  depends_on :macos
+  depends_on "python@3.14"
+
+@RESOURCES@
+
+  def install
+    virtualenv_install_with_resources
+  end
+
+  def caveats
+    <<~EOS
+      Run blocksd in the foreground:
+        blocksd run
+
+      After stopping the foreground process, enable startup at login:
+        blocksd install
+
+      Run blocksd install again after upgrading to refresh the LaunchAgent.
+      Before removing blocksd, run blocksd uninstall to remove the agent.
+      Do not use sudo for these commands.
+    EOS
+  end
+
+  test do
+    assert_match "ROLI Blocks", shell_output("#{bin}/blocksd --help")
+    system libexec/"bin/python", "-c", <<~PYTHON
+      import rtmidi
+      from importlib.metadata import version
+      from blocksd.web import resolve_static_dir
+      assert version("blocksd") == "#{version}"
+      assert rtmidi.API_MACOSX_CORE in rtmidi.get_compiled_api()
+      index = resolve_static_dir() / "index.html"
+      assert index.is_file(), "Bundled dashboard is missing"
+    PYTHON
+  end
+end

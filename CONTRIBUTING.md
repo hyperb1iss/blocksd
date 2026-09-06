@@ -99,3 +99,11 @@ Keep commits focused, include regression tests for behavior changes, and documen
 Run `just check`, merge the changes, then dispatch Release with an explicit version (for example, `0.5.0`). Use its `dry_run` option to exercise preparation without tagging or publishing. The publication workflow generates release notes with git-iris using the Anthropic provider and `claude-opus-5`. Review the generated notes for accurate upgrade instructions and hardware limitations.
 
 The release workflow updates package metadata, builds and verifies distributions, creates a tag, and dispatches publication. The GitHub release includes the wheel, source archive, `install.sh`, and `SHA256SUMS`; PyPI publication uses trusted publishing. Check the release and publish workflow results before announcing availability. The latest installer URL follows the latest GitHub release, while `--version` selects the package version from PyPI.
+
+### Homebrew
+
+Publication also generates `blocksd.rb` from the built source archive. The formula uses that archive's version, checksum, and locked runtime dependency closure, including the bundled dashboard. CI installs the formula from a local archive on macOS and runs `brew test` before release. The source build requires Homebrew Python, Rust, CMake, and pkgconf.
+
+After a macOS-capable release is published, submit its `blocksd.rb` as `Formula/blocksd.rb` in `hyperb1iss/homebrew-tap`. Verify the release asset checksum before opening the tap PR. Do not publish the formula generated from an unreleased local build against an existing release tag.
+
+The shared `homebrew-update.yml` workflow currently accepts native binary artifacts, not Python formulas. Automatic tap updates need a formula-artifact path in that workflow and a `HOMEBREW_TAP_TOKEN` secret with access to the tap. Until configured, update the tap through a reviewed PR; package publication alone does not make a release available through Homebrew.
