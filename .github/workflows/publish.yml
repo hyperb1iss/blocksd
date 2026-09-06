@@ -6,36 +6,57 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  id-token: write
-  actions: read
+  contents: read
 
 jobs:
+  checks:
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/ci.yml
+
   pypi:
     name: Publish to PyPI
     runs-on: ubuntu-latest
+    needs: checks
+    permissions:
+      contents: read
+      id-token: write
     environment:
       name: pypi
       url: https://pypi.org/p/blocksd
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.ref }}
 
-      - uses: astral-sh/setup-uv@v7
-
-      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
+          version: "0.12.10"
           python-version: "3.13"
 
+      - uses: ./.github/actions/setup-js
+      - run: pnpm --dir web build
+
+      - name: Verify tag matches package version
+        run: |
+          uv run --no-project python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+          version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+          if os.environ["GITHUB_REF_NAME"] != f"v{version}":
+              raise SystemExit("Release tag does not match pyproject.toml")
+          PY
+
       - name: Build package
-        run: uv build
+        run: |
+          uv lock --check
+          uv build --clear
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
 
   github-release:
-    uses: hyperb1iss/shared-workflows/.github/workflows/github-release.yml@v1
+    uses: hyperb1iss/shared-workflows/.github/workflows/github-release.yml@9edda2222785fe0351a26a07bf26a3385874d288 # v1
     needs: [pypi]
     permissions:
       contents: write
@@ -47,14 +68,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: [pypi]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Extract version from tag
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Generate .SRCINFO and publish to AUR
-        uses: KSXGitHub/github-actions-deploy-aur@v4.1.2
+        uses: KSXGitHub/github-actions-deploy-aur@abe8ac26b51011c88be58c8809fd2ac674068ea5 # v4.1.2
         with:
           pkgname: blocksd
           pkgbuild: packaging/aur/blocksd/PKGBUILD

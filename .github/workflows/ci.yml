@@ -5,23 +5,61 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  ci:
-    uses: hyperb1iss/shared-workflows/.github/workflows/python-ci.yml@v1
-    with:
-      python-version: "3.13"
-      system-deps: libasound2-dev
+  python:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev libjack-jackd2-dev
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.10"
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run --locked ruff check src tests scripts
+      - run: uv run --locked ruff format --check src tests scripts
+      - run: uv run --locked ty check src tests scripts
+      - run: uv run --locked pytest
 
-  typecheck:
-    name: Type Check
+  web:
+    name: Dashboard and distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
-      - uses: astral-sh/setup-uv@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-js
+      - run: pnpm --dir web check
+      - run: pnpm --dir web build
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev libjack-jackd2-dev
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
+          version: "0.12.10"
           python-version: "3.13"
-      - run: uv sync
-      - run: uv run ty check src
+      - run: uv lock --check
+      - run: uv build --clear
+      - name: Verify installed distribution
+        run: uv run --no-project --with dist/*.whl python scripts/check_distribution.py
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-js
+        with:
+          directory: docs
+      - run: pnpm --dir docs lint
+      - run: pnpm --dir docs build
