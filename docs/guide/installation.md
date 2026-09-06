@@ -1,8 +1,58 @@
 # Installation
 
-blocksd runs on Linux with ALSA MIDI, Python 3.13 or newer, and a systemd user session for service management. The quick installer provides uv and a managed Python when needed.
+blocksd uses ALSA MIDI on Linux and CoreMIDI on macOS, with Python 3.13 or newer. Background startup uses a systemd user service on Linux and a per-user LaunchAgent on macOS. Windows support is not implemented.
+
+## macOS
+
+macOS support is available from source until the next release. Follow [From Source](#from-source), or build only the runtime and dashboard:
+
+```bash
+git clone https://github.com/hyperb1iss/blocksd.git
+cd blocksd
+uv sync --locked
+pnpm --dir web install --frozen-lockfile
+pnpm --dir web build
+uv run --locked blocksd status
+uv run --locked blocksd run -v
+```
+
+Stop the foreground process before installing the background service:
+
+```bash
+uv run --locked blocksd install
+launchctl print "gui/$(id -u)/tech.hyperbliss.blocksd"
+tail -n 30 "$HOME/Library/Logs/blocksd/stderr.log"
+```
+
+Installation requires a GUI login session and creates `~/Library/LaunchAgents/tech.hyperbliss.blocksd.plist`. The agent starts on login, restarts after a failed exit, and writes logs under `~/Library/Logs/blocksd/`. Re-running installation unloads the previous registration and starts the current executable. The service uses an absolute executable path, so keep the checkout and virtual environment in place.
+
+Use `blocksd install --no-enable` to write the plist without changing the running service. The `--no-service` option skips service setup entirely. macOS ignores `--no-udev`; no device permission rules or sudo are needed. Use the `uv run --locked` prefix for commands in a source checkout.
+
+To stop the service before probing hardware or running standalone LED/config commands:
+
+```bash
+launchctl bootout "gui/$(id -u)/tech.hyperbliss.blocksd"
+uv run --locked blocksd status --probe
+uv run --locked blocksd install
+```
+
+Open `http://localhost:9010` while the daemon runs. User configuration lives at `~/Library/Application Support/blocksd/config.toml`. The Unix socket is `/tmp/blocksd-<uid>/blocksd.sock` (replace `<uid>` with `id -u`); its parent must be owned by the current user with mode `0700`.
+
+CoreMIDI scanning, runtime startup, and installer behavior can be checked without hardware. Before treating a Mac/device combination as hardware-validated, check:
+
+- Serial and topology responses during `status --probe`, followed by sustained API keepalive.
+- Touch/button events and configuration reads with the daemon running.
+- USB unplug/replug and DNA topology changes, including two identical Blocks.
+- Recovery after sleep/wake.
+- Concurrent MIDI use with your DAW. Close ROLI Dashboard during the protocol check so another host does not change API mode.
+
+Hardware acceptance remains pending. The existing LittleFoot renderer limitation also applies on macOS: accepted LED writes do not prove visible output.
+
+If python-rtmidi builds from source, install Xcode Command Line Tools (`xcode-select --install`). CoreMIDI is the native backend; ALSA/JACK packages are not needed.
 
 ## Quick Install and Upgrade
+
+The current published release installer targets Linux. Use the source instructions above for macOS until a release includes the new installer.
 
 Download the release installer, inspect it, and run it as your normal user:
 
@@ -62,7 +112,7 @@ uv run --locked blocksd install
 
 Keep the checkout and its virtual environment at that path while the service uses it. After updating the checkout, sync dependencies, rebuild the dashboard, and rerun `uv run --locked blocksd install` to restart the service.
 
-## What Service Setup Does
+## Linux Service Setup
 
 The udev file at `/etc/udev/rules.d/99-roli-blocks.rules` grants all local users read/write access to matching ROLI devices (`MODE="0666"`) and adds the `uaccess` tag. Installation requires sudo. Reconnect your devices after installing the rules.
 
@@ -87,7 +137,7 @@ Open `http://localhost:9010` for the running daemon's dashboard. Do not launch `
 
 The `status --probe`, `led`, and `config` commands open separate MIDI sessions. Stop the service before using those commands, then restart it afterward.
 
-## Native Dependencies
+## Linux Native Dependencies
 
 ALSA runtime support is required. If python-rtmidi needs to compile from source, install a C/C++ toolchain, pkg-config, and ALSA/JACK development headers. For Debian or Ubuntu:
 
@@ -100,7 +150,7 @@ Use the equivalent development packages for your distribution. The installer doe
 ## Uninstall
 
 ```bash
-blocksd uninstall               # service and udev rules
+blocksd uninstall               # native service (plus udev rules on Linux)
 uv tool uninstall blocksd       # Python package (uv installations)
 ```
 

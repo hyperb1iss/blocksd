@@ -17,6 +17,8 @@ Only the first existing file is loaded; user and system settings are not merged.
 blocksd run --config /path/to/config.toml
 ```
 
+On macOS, `~/Library/Application Support/blocksd/config.toml` takes priority over the two paths above. Existing `~/.config/blocksd/config.toml` files remain usable as a fallback.
+
 ## Example Configuration
 
 All settings live under a `[daemon]` section. Here's a fully annotated example showing every field at its default value:
@@ -56,7 +58,7 @@ The schema accepts `scan_interval`, `ping_interval_master`, `ping_interval_dna`,
 
 **`api_enabled`** controls whether the Unix socket server starts with the daemon. When enabled, external clients can connect to discover devices, stream LED frames, and subscribe to touch/button events.
 
-**`api_socket`** overrides the socket path. By default, blocksd creates the socket at `$XDG_RUNTIME_DIR/blocksd/blocksd.sock`, falling back to `/tmp/blocksd/blocksd.sock` if `XDG_RUNTIME_DIR` is not set.
+**`api_socket`** overrides the socket path. On Linux, blocksd creates the socket at `$XDG_RUNTIME_DIR/blocksd/blocksd.sock`, falling back to `/tmp/blocksd/blocksd.sock` if `XDG_RUNTIME_DIR` is not set. On macOS, the default is `/tmp/blocksd-<uid>/blocksd.sock` in a directory owned by the current user with mode `0700`. A short path avoids the Unix socket address limit even when macOS provides a long temporary directory path.
 
 ### Web Dashboard
 
@@ -81,7 +83,7 @@ blocksd ui --no-browser          # start server without opening browser
 
 ## Environment Variables
 
-blocksd respects standard Linux environment variables for path resolution:
+On Linux, blocksd respects the runtime directory environment variable below. macOS uses the per-user socket path described above instead.
 
 | Variable          | Default | Used For              |
 | ----------------- | ------- | --------------------- |

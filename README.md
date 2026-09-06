@@ -5,7 +5,7 @@
 </h1>
 
 <p align="center">
-  <strong>Linux Daemon for ROLI Blocks Devices</strong><br>
+  <strong>Linux and macOS Daemon for ROLI Blocks Devices</strong><br>
   <sub>✦ Topology · Keepalive · LED Control · Touch Events ✦</sub>
 </p>
 
@@ -32,7 +32,7 @@
 
 ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter "API mode." Without it, they show a searching animation and eventually power off. There's no official Linux support.
 
-**blocksd** implements the ROLI Blocks host protocol: device discovery, topology management, API mode keepalive, LED control, touch events, and device configuration. Your Blocks stay alive and useful on Linux.
+**blocksd** implements the ROLI Blocks host protocol: device discovery, topology management, API mode keepalive, LED control, touch events, and device configuration. The shared runtime uses ALSA on Linux and CoreMIDI on macOS.
 
 ## ✦ Features
 
@@ -49,6 +49,23 @@ ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter 
 
 ## 📦 Install
 
+### macOS
+
+macOS support is available from source until the next release. Build the dashboard, then run in the foreground:
+
+```bash
+git clone https://github.com/hyperb1iss/blocksd.git
+cd blocksd
+uv sync --locked
+pnpm --dir web install --frozen-lockfile
+pnpm --dir web build
+uv run --locked blocksd run -v
+```
+
+After stopping the foreground process, run `uv run --locked blocksd install` to install a per-user LaunchAgent that starts on login. macOS does not need udev rules or sudo. Keep the checkout and its virtual environment at the installed path.
+
+The macOS runtime and installer have automated coverage. Hardware handshake, sleep/wake, and DAW coexistence still need validation with connected Blocks. See the [macOS installation guide](https://hyperb1iss.github.io/blocksd/guide/installation#macos) for service commands and the hardware checklist.
+
 ### Quick Install
 
 ```bash
@@ -56,7 +73,7 @@ curl -fsSL https://github.com/hyperb1iss/blocksd/releases/latest/download/instal
 bash install-blocksd.sh
 ```
 
-Installs or upgrades blocksd using uv and managed Python, installs udev rules with sudo, and enables and restarts a systemd user service. Run as your normal user. Use `--version 0.5.0` to select a release or `--no-udev`, `--no-service`, and `--no-enable` to skip setup steps. See the [installation guide](https://hyperb1iss.github.io/blocksd/guide/installation) for prerequisites and upgrade details.
+The current release installer targets Linux. It installs or upgrades blocksd using uv and managed Python, installs udev rules with sudo, and enables and restarts a systemd user service. Run as your normal user. Use `--version 0.5.0` to select a release or `--no-udev`, `--no-service`, and `--no-enable` to skip setup steps. See the [installation guide](https://hyperb1iss.github.io/blocksd/guide/installation) for prerequisites and upgrade details.
 
 ### From PyPI
 
@@ -178,6 +195,7 @@ blocksd uninstall                      # remove service and udev rules
 
 - Socket path: `$XDG_RUNTIME_DIR/blocksd/blocksd.sock`
 - Fallback path: `/tmp/blocksd/blocksd.sock`
+- macOS path: `/tmp/blocksd-<uid>/blocksd.sock` in a private per-user directory
 - One socket supports both control messages and high-rate LED frame writes
 
 **WebSocket**: browser and network clients (used by `blocksd ui`)

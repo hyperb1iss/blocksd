@@ -1,4 +1,4 @@
-"""Install/uninstall blocksd systemd service and udev rules."""
+"""Install/uninstall native user services and Linux device permissions."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def _find_blocksd_bin() -> str:
     candidates.append(Path.home() / ".local" / "bin" / "blocksd")
     for candidate in candidates:
         if candidate.is_file() and os.access(candidate, os.X_OK):
-            return str(candidate)
+            return str(candidate.absolute())
     raise FileNotFoundError("Cannot locate blocksd executable; add its install directory to PATH")
 
 
@@ -98,20 +98,28 @@ def _run(cmd: list[str], *, sudo: bool = False, check: bool = True) -> bool:
 @app.command()
 def install(
     no_udev: bool = typer.Option(False, "--no-udev", help="Skip udev rules installation"),
-    no_service: bool = typer.Option(False, "--no-service", help="Skip systemd service"),
+    no_service: bool = typer.Option(False, "--no-service", help="Skip background service setup"),
     no_enable: bool = typer.Option(
-        False, "--no-enable", help="Write/reload the service without enabling or restarting"
+        False, "--no-enable", help="Write service without enabling or restarting (Linux reloads)"
     ),
 ) -> None:
-    """Install systemd user service and udev rules."""
+    """Install a Linux systemd service or macOS LaunchAgent."""
+    _check_platform()
     try:
         # Resolve before any privileged changes so a missing entrypoint fails early.
         bin_path = _find_blocksd_bin() if not no_service else None
-        if not no_udev:
+        if sys.platform == "linux" and not no_udev:
             _install_udev()
         if bin_path is not None:
-            _install_service(bin_path, enable=not no_enable)
-    except (OSError, ValueError) as exc:
+            if sys.platform == "darwin":
+                from blocksd.cli.launchd import install_agent
+
+                install_agent(bin_path, enable=not no_enable)
+            else:
+                _install_service(bin_path, enable=not no_enable)
+    except typer.Exit:
+        raise
+    except (OSError, ValueError, RuntimeError) as exc:
         typer.echo(f"Installation failed: {exc}", err=True)
         raise typer.Exit(1) from exc
     typer.echo("Installation complete.")
@@ -119,7 +127,18 @@ def install(
 
 @app.command()
 def uninstall() -> None:
-    """Remove systemd service and udev rules."""
+    """Remove the native user service and Linux device permissions."""
+    _check_platform()
+    if sys.platform == "darwin":
+        from blocksd.cli.launchd import uninstall_agent
+
+        try:
+            uninstall_agent()
+        except (OSError, RuntimeError) as exc:
+            typer.echo(f"Uninstallation failed: {exc}", err=True)
+            raise typer.Exit(1) from exc
+        typer.echo("blocksd uninstalled.")
+        return
     _run(["systemctl", "--user", "stop", "blocksd"], check=False)
     _run(["systemctl", "--user", "disable", "blocksd"], check=False)
 
@@ -136,6 +155,12 @@ def uninstall() -> None:
         typer.echo("Removed udev rules")
 
     typer.echo("blocksd uninstalled.")
+
+
+def _check_platform() -> None:
+    if sys.platform not in {"linux", "darwin"}:
+        typer.echo("Service installation supports Linux and macOS only.", err=True)
+        raise typer.Exit(1)
 
 
 def _install_udev() -> None:

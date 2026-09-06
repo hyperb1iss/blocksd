@@ -1,18 +1,19 @@
 [project]
 name = "blocksd"
 version = "0.5.0"
-description = "Linux daemon for ROLI Blocks devices — keeps them alive, controls LEDs, manages topology"
+description = "ROLI Blocks daemon for Linux and macOS: keepalive, LED control, and topology"
 readme = "README.md"
 license = "ISC"
 requires-python = ">=3.13"
 authors = [{ name = "Stefanie Jane", email = "stef@hyperbliss.tech" }]
-keywords = ["roli", "blocks", "midi", "lightpad", "seaboard", "linux", "daemon"]
+keywords = ["roli", "blocks", "midi", "lightpad", "seaboard", "linux", "macos", "daemon"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: ISC License (ISCL)",
     "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Multimedia :: Sound/Audio :: MIDI",

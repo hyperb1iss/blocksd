@@ -8,8 +8,9 @@ blocksd exposes two APIs for building your own integrations: a Unix domain socke
 
 Low-latency local IPC. This is the preferred method for local integrations.
 
-- Primary path: `$XDG_RUNTIME_DIR/blocksd/blocksd.sock`
-- Fallback path: `/tmp/blocksd/blocksd.sock`
+- Linux primary path: `$XDG_RUNTIME_DIR/blocksd/blocksd.sock`
+- Linux fallback path: `/tmp/blocksd/blocksd.sock`
+- macOS path: `/tmp/blocksd-<uid>/blocksd.sock`, using the current user's numeric ID
 - Permissions: directory `0700`, socket `0660`
 
 ### WebSocket

@@ -13,8 +13,8 @@ import json
 import logging
 import os
 import stat
+import sys
 import time
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from blocksd.api.commands import ApiCommands
@@ -25,22 +25,16 @@ from blocksd.api.protocol import (
     encode_json,
 )
 from blocksd.api.websocket import WSOpcode, build_frame, read_frame
+from blocksd.paths import default_socket_path
 from blocksd.web import resolve_static_dir
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
+    from pathlib import Path
 
     from blocksd.topology.manager import TopologyManager
 
 log = logging.getLogger(__name__)
-
-
-def default_socket_path() -> Path:
-    """Default socket path: $XDG_RUNTIME_DIR/blocksd/blocksd.sock."""
-    runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
-    if runtime_dir:
-        return Path(runtime_dir) / "blocksd" / "blocksd.sock"
-    return Path("/tmp/blocksd/blocksd.sock")
 
 
 class _ApiTransport(ApiCommands):
@@ -111,6 +105,7 @@ class ApiServer(_ApiTransport):
     ) -> None:
         super().__init__(manager)
         self._socket_path = socket_path or default_socket_path()
+        self._private_runtime = socket_path is None and sys.platform == "darwin"
         self._start_time = time.monotonic()
         self._client_count = 0
         self._socket_identity: tuple[int, int] | None = None
@@ -121,6 +116,16 @@ class ApiServer(_ApiTransport):
             return
         # Ensure socket directory exists
         self._socket_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if self._private_runtime:
+            directory = self._socket_path.parent.lstat()
+            if (
+                not stat.S_ISDIR(directory.st_mode)
+                or directory.st_uid != os.getuid()
+                or stat.S_IMODE(directory.st_mode) & 0o077
+            ):
+                raise PermissionError(
+                    f"Socket directory must be private and owned by this user: {self._socket_path.parent}"
+                )
 
         # Only reclaim an actual socket whose previous listener is gone.
         if self._socket_path.exists():

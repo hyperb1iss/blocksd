@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import os
+import shutil
 import subprocess
 from pathlib import Path
 from unittest.mock import Mock
@@ -12,6 +12,11 @@ from typer.testing import CliRunner
 
 from blocksd.cli import install
 from blocksd.cli.app import app
+
+
+@pytest.fixture(autouse=True)
+def linux_platform(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(install.sys, "platform", "linux")
 
 
 @pytest.fixture
@@ -64,6 +69,7 @@ def test_service_errors_fail_install(setup_commands: Mock, failed_step: str) -> 
     result = CliRunner().invoke(app, ["install", "--no-udev"])
     assert result.exit_code == 1
     assert "Command failed" in result.output
+    assert "Installation failed" not in result.output
     assert "Installation complete" not in result.output
 
 
@@ -145,7 +151,6 @@ def shell_env(tmp_path: Path) -> dict[str, str]:
     )
     binary.chmod(0o755)
     return {
-        **os.environ,
         "PATH": f"{bin_dir}:/usr/bin:/bin",
         "HOME": str(tmp_path),
         "INSTALL_LOG": str(tmp_path / "commands"),
@@ -201,7 +206,9 @@ def bootstrap_env(shell_env: dict[str, str]) -> dict[str, str]:
     uv_source = (bin_dir / "uv").read_text()
     (bin_dir / "uv").unlink()
     for command in ("sh", "mktemp", "rm", "mkdir", "cp", "chmod"):
-        (bin_dir / command).symlink_to(Path("/usr/bin") / command)
+        executable = shutil.which(command)
+        assert executable is not None
+        (bin_dir / command).symlink_to(executable)
     source = bin_dir / "uv-source"
     source.write_text(uv_source)
     source.chmod(0o755)
@@ -227,6 +234,21 @@ def test_bootstrap_without_uv_is_noninteractive(bootstrap_env: dict[str, str]) -
         "blocksd:install --no-udev --no-service" in Path(bootstrap_env["INSTALL_LOG"]).read_text()
     )
     assert not list(Path(bootstrap_env["TMPDIR"]).iterdir())
+
+
+def test_bootstrap_supports_macos(bootstrap_env: dict[str, str]) -> None:
+    (Path(bootstrap_env["HOME"]) / "bin" / "uname").write_text("#!/bin/sh\nprintf 'Darwin\\n'\n")
+    result = run_installer(bootstrap_env, "--no-enable")
+    assert result.returncode == 0, result.stderr
+    assert "blocksd:install --no-enable" in Path(bootstrap_env["INSTALL_LOG"]).read_text()
+
+
+def test_shell_rejects_unsupported_platform(shell_env: dict[str, str]) -> None:
+    (Path(shell_env["HOME"]) / "bin" / "uname").write_text("#!/bin/sh\nprintf 'FreeBSD\\n'\n")
+    result = run_installer(shell_env)
+    assert result.returncode == 1
+    assert "Linux and macOS only" in result.stderr
+    assert not Path(shell_env["INSTALL_LOG"]).exists()
 
 
 @pytest.mark.parametrize("failed_command", ["curl", "bootstrap"])

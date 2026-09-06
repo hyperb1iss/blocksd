@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from pydantic import BaseModel
 
 
@@ -18,15 +16,9 @@ class DaemonConfig(BaseModel):
 
     # API server settings
     api_enabled: bool = True
-    api_socket: str = ""  # empty = default ($XDG_RUNTIME_DIR/blocksd/blocksd.sock)
+    api_socket: str = ""  # empty = platform-specific local socket path
 
     # Web UI settings
     web_enabled: bool = True
     web_host: str = "127.0.0.1"
     web_port: int = 9010
-
-
-DEFAULT_CONFIG_PATHS = [
-    Path("/etc/blocksd/config.toml"),
-    Path.home() / ".config" / "blocksd" / "config.toml",
-]

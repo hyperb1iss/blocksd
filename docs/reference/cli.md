@@ -136,25 +136,27 @@ blocksd config set 10 50         # set velocity sensitivity to 50
 
 ## `blocksd install`
 
-Set up systemd service and udev rules. The udev rule installation requires sudo.
+Set up a systemd user service and udev rules on Linux, or a per-user LaunchAgent on macOS. Only Linux udev installation requires sudo. macOS service registration requires a GUI login session.
 
 ```bash
-blocksd install                  # full setup (udev + systemd + auto-start)
+blocksd install                  # native service + auto-start, plus Linux udev rules
 blocksd install --no-udev        # skip udev rules
-blocksd install --no-enable      # write/reload service without enabling or restarting
-blocksd install --no-service     # skip systemd service entirely
+blocksd install --no-enable      # write service without enabling or restarting
+blocksd install --no-service     # skip background service setup entirely
 ```
 
-This creates:
+The Linux installer creates:
 
 | File                                     | Purpose                              |
 | ---------------------------------------- | ------------------------------------ |
 | `/etc/udev/rules.d/99-roli-blocks.rules` | USB device permissions for your user |
 | `~/.config/systemd/user/blocksd.service` | systemd user service with watchdog   |
 
+The macOS installer creates `~/Library/LaunchAgents/tech.hyperbliss.blocksd.plist` and writes logs under `~/Library/Logs/blocksd/`. Repeated installation replaces the loaded service definition and starts the new executable. With `--no-enable`, macOS only writes the definition; Linux also reloads systemd. See [macOS installation](../guide/installation#macos) for stop, start, and status commands.
+
 ## `blocksd uninstall`
 
-Remove the systemd service and udev rules. The Python package and user configuration remain; remove a uv tool installation separately with `uv tool uninstall blocksd`.
+Remove the native background service and, on Linux, udev rules. The Python package, user configuration, and macOS logs remain; remove a uv tool installation separately with `uv tool uninstall blocksd`.
 
 ```bash
 blocksd uninstall

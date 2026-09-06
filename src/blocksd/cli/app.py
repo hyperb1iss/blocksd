@@ -6,7 +6,7 @@ import typer
 
 app = typer.Typer(
     name="blocksd",
-    help="ROLI Blocks device manager for Linux",
+    help="ROLI Blocks device manager for Linux and macOS",
     no_args_is_help=True,
 )
 

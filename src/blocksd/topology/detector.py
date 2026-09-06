@@ -8,6 +8,10 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from blocksd.device.coremidi import CoreMidiEndpoint
 
 log = logging.getLogger(__name__)
 
@@ -25,6 +29,15 @@ class MidiPortPair:
     input_port: int
     output_port: int
     name: str
+    endpoint_ids: tuple[int, int] | None = None
+    occurrence: int = 0
+
+    @property
+    def key(self) -> str:
+        """Identity independent of the current enumeration indices."""
+        if self.endpoint_ids is not None:
+            return f"coremidi:{self.endpoint_ids[0]}:{self.endpoint_ids[1]}"
+        return f"named:{self.name}:{self.occurrence}"
 
 
 def _is_blocks_port(name: str) -> bool:
@@ -44,10 +57,9 @@ def _clean_port_name(name: str) -> str:
 def scan_for_blocks() -> list[MidiPortPair]:
     """Scan MIDI ports and return matched input/output pairs for ROLI Blocks.
 
-    Uses the same matching strategy as roli_MIDIDeviceDetector:
-    1. Find all MIDI inputs containing "BLOCK" or "Block"
-    2. For each input, find the corresponding output by cleaned name
-    3. Handle duplicate names (multiple blocks of same type) via occurrence counting
+    Find inputs containing "BLOCK" or "Block". CoreMIDI hardware pairs by
+    owning entity and retains endpoint UIDs across index changes. Other
+    backends and virtual endpoints pair by normalized name and occurrence.
     """
     import rtmidi
 
@@ -55,14 +67,32 @@ def scan_for_blocks() -> list[MidiPortPair]:
     midi_out = rtmidi.MidiOut()
 
     try:
+        endpoints = None
+        if midi_in.get_current_api() == rtmidi.API_MACOSX_CORE:
+            from blocksd.device.coremidi import endpoint_snapshot
+
+            endpoints = endpoint_snapshot()
         input_ports = midi_in.get_ports()
         output_ports = midi_out.get_ports()
-    except Exception:
+        if endpoints is not None and endpoints != endpoint_snapshot():
+            raise RuntimeError("CoreMIDI endpoints changed during discovery")
+        return _pair_ports(input_ports, output_ports, endpoints)
+    finally:
         midi_in.delete()
         midi_out.delete()
-        raise
 
+
+def _pair_ports(
+    input_ports: list[str],
+    output_ports: list[str],
+    endpoints: tuple[list[CoreMidiEndpoint], list[CoreMidiEndpoint]] | None = None,
+) -> list[MidiPortPair]:
+    if endpoints is not None and (
+        len(endpoints[0]) != len(input_ports) or len(endpoints[1]) != len(output_ports)
+    ):
+        raise RuntimeError("CoreMIDI endpoint count changed during discovery")
     pairs: list[MidiPortPair] = []
+    used_outputs: set[int] = set()
 
     for in_idx, in_name in enumerate(input_ports):
         if not _is_blocks_port(in_name):
@@ -73,25 +103,31 @@ def scan_for_blocks() -> list[MidiPortPair]:
         # Count how many times we've already matched this cleaned name
         input_occurrences = sum(1 for p in pairs if _clean_port_name(p.name) == cleaned_in)
 
-        # Find the Nth matching output
-        output_occurrences = 0
+        # Native entities distinguish identically named physical devices.
         matched_out_idx = -1
-
         for out_idx, out_name in enumerate(output_ports):
-            if _clean_port_name(out_name) == cleaned_in:
-                if output_occurrences == input_occurrences:
-                    matched_out_idx = out_idx
-                    break
-                output_occurrences += 1
+            if out_idx in used_outputs:
+                continue
+            if endpoints is not None and endpoints[0][in_idx].entity:
+                matches = endpoints[0][in_idx].entity == endpoints[1][out_idx].entity
+            else:
+                matches = _clean_port_name(out_name) == cleaned_in and (
+                    endpoints is None or endpoints[1][out_idx].entity == 0
+                )
+            if matches:
+                matched_out_idx = out_idx
+                break
 
         if matched_out_idx >= 0:
-            pairs.append(MidiPortPair(in_idx, matched_out_idx, in_name))
+            ids = (
+                (endpoints[0][in_idx].uid, endpoints[1][matched_out_idx].uid)
+                if endpoints is not None
+                else None
+            )
+            pairs.append(MidiPortPair(in_idx, matched_out_idx, in_name, ids, input_occurrences))
+            used_outputs.add(matched_out_idx)
             log.debug("Found ROLI device: %s (in=%d, out=%d)", in_name, in_idx, matched_out_idx)
         else:
             log.warning("No matching output for ROLI input: %s", in_name)
-
-    # Close ALSA sequencer clients to avoid exhausting /dev/snd/seq slots
-    midi_in.delete()
-    midi_out.delete()
 
     return pairs

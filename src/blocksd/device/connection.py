@@ -108,7 +108,7 @@ class MidiConnection:
         return messages
 
     def close(self) -> None:
-        """Close both MIDI ports and release ALSA sequencer clients."""
+        """Close both MIDI ports and release native MIDI clients."""
         if self._closed:
             return
         self._closed = True
@@ -136,6 +136,7 @@ def open_connection(
     loop: asyncio.AbstractEventLoop,
     *,
     name: str = "",
+    endpoint_ids: tuple[int, int] | None = None,
 ) -> MidiConnection:
     """Open a MIDI input/output pair and return a MidiConnection."""
     import rtmidi
@@ -143,7 +144,27 @@ def open_connection(
     midi_in = rtmidi.MidiIn()
     midi_out = rtmidi.MidiOut()
 
-    midi_in.open_port(input_port)
-    midi_out.open_port(output_port)
+    try:
+        _validate_endpoints(input_port, output_port, endpoint_ids)
+        midi_in.open_port(input_port)
+        midi_out.open_port(output_port)
+        _validate_endpoints(input_port, output_port, endpoint_ids)
+        return MidiConnection(midi_in, midi_out, loop, name=name)
+    except Exception:
+        for port in (midi_in, midi_out):
+            with contextlib.suppress(Exception):
+                port.close_port()
+            with contextlib.suppress(Exception):
+                port.delete()
+        raise
 
-    return MidiConnection(midi_in, midi_out, loop, name=name)
+
+def _validate_endpoints(
+    input_port: int, output_port: int, expected: tuple[int, int] | None
+) -> None:
+    if expected is None:
+        return
+    from blocksd.device.coremidi import endpoint_ids
+
+    if endpoint_ids(input_port, output_port) != expected:
+        raise RuntimeError("CoreMIDI endpoints changed while opening ports")

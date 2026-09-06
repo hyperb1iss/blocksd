@@ -6,7 +6,8 @@ import logging
 import tomllib
 from typing import TYPE_CHECKING
 
-from blocksd.config.schema import DEFAULT_CONFIG_PATHS, DaemonConfig
+from blocksd.config.schema import DaemonConfig
+from blocksd.paths import config_paths
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -17,12 +18,12 @@ log = logging.getLogger(__name__)
 def load_config(path: Path | None = None) -> DaemonConfig:
     """Load config from file, falling back to defaults.
 
-    Search order: explicit path → ~/.config/blocksd/config.toml → /etc/blocksd/config.toml
+    An explicit path takes priority over platform-specific defaults.
     """
     if path and path.exists():
         return _parse_config(path)
 
-    for candidate in reversed(DEFAULT_CONFIG_PATHS):
+    for candidate in config_paths():
         if candidate.exists():
             return _parse_config(candidate)
 
