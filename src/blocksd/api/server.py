@@ -8,35 +8,31 @@ Two server classes share the same TopologyManager:
 from __future__ import annotations
 
 import asyncio
-import base64
 import contextlib
 import json
 import logging
 import os
+import stat
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from blocksd.api.events import VALID_EVENTS, EventBroadcaster, _connection_to_dict, _device_to_dict
+from blocksd.api.commands import ApiCommands
 from blocksd.api.http import http_response, parse_request, serve_static, ws_upgrade_response
 from blocksd.api.protocol import (
     BINARY_FRAME_SIZE,
     BINARY_MAGIC,
-    PIXEL_DATA_SIZE,
-    decode_json,
     encode_json,
-    parse_binary_frame,
 )
 from blocksd.api.websocket import WSOpcode, build_frame, read_frame
-from blocksd.led.bitmap import LEDGrid
 from blocksd.web import resolve_static_dir
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
+
     from blocksd.topology.manager import TopologyManager
 
 log = logging.getLogger(__name__)
-
-VERSION = "0.1.0"
 
 
 def default_socket_path() -> Path:
@@ -47,7 +43,61 @@ def default_socket_path() -> Path:
     return Path("/tmp/blocksd/blocksd.sock")
 
 
-class ApiServer:
+class _ApiTransport(ApiCommands):
+    """Own listeners, accepted connection tasks, and topology subscriptions."""
+
+    def __init__(self, manager: TopologyManager) -> None:
+        super().__init__(manager)
+        self._server: asyncio.Server | None = None
+        self._clients: set[asyncio.Task[None]] = set()
+        self._events_attached = False
+
+    def _accept(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+        handler: Callable[[asyncio.StreamReader, asyncio.StreamWriter], Coroutine[Any, Any, None]],
+    ) -> None:
+        if self._server is None or not self._server.is_serving():
+            writer.close()
+            return
+        task = asyncio.create_task(handler(reader, writer))
+        self._clients.add(task)
+        task.add_done_callback(self._clients.discard)
+        task.add_done_callback(lambda _: writer.close())
+
+    def _attach_events(self) -> None:
+        self._manager.on_device_added.append(self._broadcaster.broadcast_device_added)
+        self._manager.on_device_removed.append(self._broadcaster.broadcast_device_removed)
+        self._manager.on_touch_event.append(self._broadcaster.broadcast_touch)
+        self._manager.on_button_event.append(self._broadcaster.broadcast_button)
+        self._manager.on_topology_changed.append(self._broadcaster.broadcast_topology_changed)
+        self._manager.on_config_changed.append(self._broadcaster.broadcast_config_changed)
+        self._events_attached = True
+
+    async def stop(self) -> None:
+        """Stop accepting work, join all clients, and release callback ownership."""
+        if self._server is not None:
+            self._server.close()
+            self._server.close_clients()
+        clients = list(self._clients)
+        for task in clients:
+            task.cancel()
+        await asyncio.gather(*clients, return_exceptions=True)
+        if self._server is not None:
+            await self._server.wait_closed()
+            self._server = None
+        if self._events_attached:
+            self._manager.on_device_added.remove(self._broadcaster.broadcast_device_added)
+            self._manager.on_device_removed.remove(self._broadcaster.broadcast_device_removed)
+            self._manager.on_touch_event.remove(self._broadcaster.broadcast_touch)
+            self._manager.on_button_event.remove(self._broadcaster.broadcast_button)
+            self._manager.on_topology_changed.remove(self._broadcaster.broadcast_topology_changed)
+            self._manager.on_config_changed.remove(self._broadcaster.broadcast_config_changed)
+            self._events_attached = False
+
+
+class ApiServer(_ApiTransport):
     """Unix socket API server for external integration.
 
     Wires into the TopologyManager's callbacks to broadcast device/touch/button
@@ -59,50 +109,58 @@ class ApiServer:
         manager: TopologyManager,
         socket_path: Path | None = None,
     ) -> None:
-        self._manager = manager
+        super().__init__(manager)
         self._socket_path = socket_path or default_socket_path()
-        self._broadcaster = EventBroadcaster()
-        self._server: asyncio.AbstractServer | None = None
         self._start_time = time.monotonic()
         self._client_count = 0
+        self._socket_identity: tuple[int, int] | None = None
 
     async def start(self) -> None:
         """Bind the socket and start accepting connections."""
+        if self._server is not None:
+            return
         # Ensure socket directory exists
         self._socket_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
 
-        # Remove stale socket
+        # Only reclaim an actual socket whose previous listener is gone.
         if self._socket_path.exists():
-            self._socket_path.unlink()
+            if not stat.S_ISSOCK(self._socket_path.lstat().st_mode):
+                raise FileExistsError(f"API socket path is not a socket: {self._socket_path}")
+            try:
+                _, writer = await asyncio.open_unix_connection(str(self._socket_path))
+            except ConnectionRefusedError:
+                self._socket_path.unlink()
+            else:
+                writer.close()
+                await writer.wait_closed()
+                raise FileExistsError(f"API socket is already active: {self._socket_path}")
 
         self._server = await asyncio.start_unix_server(
-            self._handle_client,
+            lambda reader, writer: self._accept(reader, writer, self._handle_client),
             path=str(self._socket_path),
         )
 
+        socket_stat = self._socket_path.stat()
+        self._socket_identity = (socket_stat.st_dev, socket_stat.st_ino)
         # Set socket permissions
         os.chmod(self._socket_path, 0o660)
 
         # Wire up event broadcasting
-        self._manager.on_device_added.append(self._broadcaster.broadcast_device_added)
-        self._manager.on_device_removed.append(self._broadcaster.broadcast_device_removed)
-        self._manager.on_touch_event.append(self._broadcaster.broadcast_touch)
-        self._manager.on_button_event.append(self._broadcaster.broadcast_button)
-        self._manager.on_topology_changed.append(self._broadcaster.broadcast_topology_changed)
-        self._manager.on_config_changed.append(self._broadcaster.broadcast_config_changed)
+        self._attach_events()
 
         self._start_time = time.monotonic()
         log.info("API server listening on %s", self._socket_path)
 
     async def stop(self) -> None:
         """Shut down the server and clean up the socket."""
-        if self._server:
-            self._server.close()
-            await self._server.wait_closed()
-            self._server = None
+        await super().stop()
 
-        if self._socket_path.exists():
-            self._socket_path.unlink()
+        if self._socket_identity is not None:
+            with contextlib.suppress(FileNotFoundError):
+                socket_stat = self._socket_path.lstat()
+                if (socket_stat.st_dev, socket_stat.st_ino) == self._socket_identity:
+                    self._socket_path.unlink()
+            self._socket_identity = None
 
         log.info("API server stopped")
 
@@ -159,200 +217,14 @@ class ApiServer:
             log.exception("Client %d error", client_id)
         finally:
             event_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await event_task
             if sub_id is not None:
                 self._broadcaster.unsubscribe(sub_id)
             writer.close()
             with contextlib.suppress(Exception):
                 await writer.wait_closed()
             log.info("Client %d disconnected", client_id)
-
-    def _handle_binary_frame(self, data: bytes) -> bool:
-        """Process a binary frame write. Returns True if accepted."""
-        try:
-            frame = parse_binary_frame(data)
-        except ValueError:
-            log.debug("Malformed binary frame")
-            return False
-
-        return self._write_rgb888_frame(frame.uid, frame.pixels)
-
-    def _handle_json(
-        self,
-        line: bytes,
-        event_queue: asyncio.Queue[dict[str, Any]],
-        current_sub_id: int | None,
-    ) -> tuple[dict[str, Any] | None, int | None]:
-        """Process a JSON request. Returns (response, new_sub_id_or_None)."""
-        try:
-            msg = decode_json(line)
-        except Exception:
-            return {"type": "error", "message": "malformed JSON"}, None
-
-        msg_type = msg.get("type", "")
-        msg_id = msg.get("id")
-
-        if msg_type == "ping":
-            return self._handle_ping(msg_id), None
-
-        if msg_type == "discover":
-            return self._handle_discover(msg_id), None
-
-        if msg_type == "frame":
-            return self._handle_json_frame(msg), None
-
-        if msg_type == "brightness":
-            return self._handle_brightness(msg), None
-
-        if msg_type == "config_get":
-            return self._handle_config_get(msg), None
-
-        if msg_type == "config_set":
-            return self._handle_config_set(msg), None
-
-        if msg_type == "topology":
-            return self._handle_topology(msg_id), None
-
-        if msg_type == "subscribe":
-            valid_events = {event for event in msg.get("events", []) if event in VALID_EVENTS}
-            sub_id = self._broadcaster.subscribe(event_queue, valid_events)
-            if current_sub_id is not None:
-                self._broadcaster.unsubscribe(current_sub_id)
-            return {"type": "subscribed", "events": sorted(valid_events)}, sub_id
-
-        return {"type": "error", "message": f"unknown type: {msg_type}"}, None
-
-    def _handle_ping(self, msg_id: str | None) -> dict[str, Any]:
-        uptime = time.monotonic() - self._start_time
-        resp: dict[str, Any] = {
-            "type": "pong",
-            "version": VERSION,
-            "uptime_seconds": int(uptime),
-            "device_count": len(self._manager.devices),
-        }
-        if msg_id:
-            resp["id"] = msg_id
-        return resp
-
-    def _handle_discover(self, msg_id: str | None) -> dict[str, Any]:
-        from blocksd.api.events import _device_to_dict
-
-        devices = [_device_to_dict(d) for d in self._manager.devices]
-        resp: dict[str, Any] = {
-            "type": "discover_response",
-            "devices": devices,
-        }
-        if msg_id:
-            resp["id"] = msg_id
-        return resp
-
-    def _handle_json_frame(self, msg: dict[str, Any]) -> dict[str, Any]:
-        uid = msg.get("uid")
-        pixels_b64 = msg.get("pixels", "")
-        if uid is None:
-            return {"type": "frame_ack", "uid": 0, "accepted": False}
-
-        try:
-            pixels = base64.b64decode(pixels_b64)
-        except Exception:
-            return {"type": "frame_ack", "uid": uid, "accepted": False}
-
-        accepted = self._write_rgb888_frame(uid, pixels)
-        return {"type": "frame_ack", "uid": uid, "accepted": accepted}
-
-    def _handle_brightness(self, msg: dict[str, Any]) -> dict[str, Any]:
-        uid = msg.get("uid")
-        value = msg.get("value", 255)
-        if uid is None:
-            return {"type": "brightness_ack", "uid": 0, "ok": False}
-
-        # Store brightness per device for future frame scaling
-        # For now, brightness is applied by scaling RGB values in _write_rgb888_frame
-        self._brightness_map[uid] = max(0, min(255, value))
-        return {"type": "brightness_ack", "uid": uid, "ok": True}
-
-    @property
-    def _brightness_map(self) -> dict[int, int]:
-        if not hasattr(self, "_brightness_store"):
-            self._brightness_store: dict[int, int] = {}
-        return self._brightness_store
-
-    def _write_rgb888_frame(self, uid: int, pixels: bytes) -> bool:
-        """Convert RGB888 frame to RGB565 and write to device heap."""
-        if len(pixels) != PIXEL_DATA_SIZE:
-            return False
-
-        device = self._manager.find_device(uid)
-        if device is None:
-            return False
-
-        brightness = self._brightness_map.get(uid, 255)
-        grid = LEDGrid()
-
-        for i in range(225):
-            offset = i * 3
-            r, g, b = pixels[offset], pixels[offset + 1], pixels[offset + 2]
-
-            # Apply brightness scaling
-            if brightness < 255:
-                r = (r * brightness) // 255
-                g = (g * brightness) // 255
-                b = (b * brightness) // 255
-
-            x = i % 15
-            y = i // 15
-            from blocksd.led.bitmap import Color
-
-            grid.set_pixel(x, y, Color(r, g, b))
-
-        return self._manager.set_led_data(uid, grid.heap_data)
-
-    def _handle_config_get(self, msg: dict[str, Any]) -> dict[str, Any]:
-        uid = msg.get("uid")
-        msg_id = msg.get("id")
-        if uid is None:
-            return {"type": "error", "message": "missing uid"}
-
-        values = self._manager.get_config(uid)
-        resp: dict[str, Any] = {
-            "type": "config_values",
-            "uid": uid,
-            "values": [
-                {"item": cv.item, "value": cv.value, "min": cv.min_val, "max": cv.max_val}
-                for cv in values.values()
-            ],
-        }
-        if msg_id:
-            resp["id"] = msg_id
-        return resp
-
-    def _handle_config_set(self, msg: dict[str, Any]) -> dict[str, Any]:
-        uid = msg.get("uid")
-        item = msg.get("item")
-        value = msg.get("value")
-        msg_id = msg.get("id")
-        if uid is None or item is None or value is None:
-            return {"type": "error", "message": "missing uid/item/value"}
-
-        ok = self._manager.set_config(uid, int(item), int(value))
-        resp: dict[str, Any] = {"type": "config_ack", "uid": uid, "item": item, "ok": ok}
-        if msg_id:
-            resp["id"] = msg_id
-        return resp
-
-    def _handle_topology(self, msg_id: str | None) -> dict[str, Any]:
-        devices = [_device_to_dict(d) for d in self._manager.devices]
-        connections: list[dict[str, Any]] = []
-        for group in self._manager.groups:
-            connections.extend(_connection_to_dict(c) for c in group.topology.connections)
-
-        resp: dict[str, Any] = {
-            "type": "topology_response",
-            "devices": devices,
-            "connections": connections,
-        }
-        if msg_id:
-            resp["id"] = msg_id
-        return resp
 
     @staticmethod
     async def _event_writer(
@@ -372,7 +244,7 @@ class ApiServer:
 # ── WebServer (HTTP + WebSocket) ─────────────────────────────────────────────
 
 
-class WebServer:
+class WebServer(_ApiTransport):
     """HTTP static file server + WebSocket API for the web UI.
 
     Serves the built SPA from a static directory and upgrades ``/ws`` to a
@@ -386,39 +258,30 @@ class WebServer:
         port: int = 9010,
         static_dir: Path | None = None,
     ) -> None:
-        self._manager = manager
+        super().__init__(manager)
         self._host = host
         self._port = port
         self._static_dir = static_dir or resolve_static_dir()
-        self._broadcaster = EventBroadcaster()
-        self._server: asyncio.AbstractServer | None = None
         self._start_time = time.monotonic()
-        self._brightness_store: dict[int, int] = {}
 
     async def start(self) -> None:
         """Start the TCP server and wire event broadcasting."""
+        if self._server is not None:
+            return
         self._server = await asyncio.start_server(
-            self._handle_connection,
+            lambda reader, writer: self._accept(reader, writer, self._handle_connection),
             self._host,
             self._port,
         )
 
-        self._manager.on_device_added.append(self._broadcaster.broadcast_device_added)
-        self._manager.on_device_removed.append(self._broadcaster.broadcast_device_removed)
-        self._manager.on_touch_event.append(self._broadcaster.broadcast_touch)
-        self._manager.on_button_event.append(self._broadcaster.broadcast_button)
-        self._manager.on_topology_changed.append(self._broadcaster.broadcast_topology_changed)
-        self._manager.on_config_changed.append(self._broadcaster.broadcast_config_changed)
+        self._attach_events()
 
         self._start_time = time.monotonic()
         log.info("Web UI at http://%s:%d", self._host, self._port)
 
     async def stop(self) -> None:
         """Shut down the TCP server."""
-        if self._server:
-            self._server.close()
-            await self._server.wait_closed()
-            self._server = None
+        await super().stop()
 
     # ── HTTP ──────────────────────────────────────────────────────────────
 
@@ -488,14 +351,7 @@ class WebServer:
                     continue
 
                 if opcode == WSOpcode.TEXT:
-                    try:
-                        msg = json.loads(payload)
-                    except (json.JSONDecodeError, UnicodeDecodeError):
-                        self._ws_send(writer, {"type": "error", "message": "malformed JSON"})
-                        await writer.drain()
-                        continue
-
-                    response, new_sub_id = self._handle_message(msg, event_queue, sub_id)
+                    response, new_sub_id = self._handle_json(payload, event_queue, sub_id)
                     if new_sub_id is not None:
                         sub_id = new_sub_id
                     if response:
@@ -503,12 +359,14 @@ class WebServer:
                         await writer.drain()
 
                 elif opcode == WSOpcode.BINARY:
-                    self._handle_binary_ws(payload)
+                    self._handle_binary_frame(payload)
 
         except (asyncio.IncompleteReadError, ConnectionResetError, BrokenPipeError):
             pass
         finally:
             event_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await event_task
             if sub_id is not None:
                 self._broadcaster.unsubscribe(sub_id)
 
@@ -529,163 +387,3 @@ class WebServer:
                 await writer.drain()
         except (ConnectionResetError, BrokenPipeError, asyncio.CancelledError):
             pass
-
-    # ── Message handlers ──────────────────────────────────────────────────
-
-    def _handle_message(
-        self,
-        msg: dict[str, Any],
-        event_queue: asyncio.Queue[dict[str, Any]],
-        current_sub_id: int | None,
-    ) -> tuple[dict[str, Any] | None, int | None]:
-        """Dispatch a JSON message — same protocol as the Unix socket API."""
-        msg_type = msg.get("type", "")
-        msg_id = msg.get("id")
-
-        if msg_type == "ping":
-            return self._make_pong(msg_id), None
-
-        if msg_type == "discover":
-            return self._make_discover(msg_id), None
-
-        if msg_type == "frame":
-            return self._make_frame_ack(msg), None
-
-        if msg_type == "brightness":
-            return self._make_brightness_ack(msg), None
-
-        if msg_type == "config_get":
-            return self._make_config_values(msg), None
-
-        if msg_type == "config_set":
-            return self._make_config_ack(msg), None
-
-        if msg_type == "topology":
-            return self._make_topology(msg_id), None
-
-        if msg_type == "subscribe":
-            valid_events = {e for e in msg.get("events", []) if e in VALID_EVENTS}
-            sub_id = self._broadcaster.subscribe(event_queue, valid_events)
-            if current_sub_id is not None:
-                self._broadcaster.unsubscribe(current_sub_id)
-            return {"type": "subscribed", "events": sorted(valid_events)}, sub_id
-
-        return {"type": "error", "message": f"unknown type: {msg_type}"}, None
-
-    def _make_pong(self, msg_id: str | None) -> dict[str, Any]:
-        uptime = time.monotonic() - self._start_time
-        resp: dict[str, Any] = {
-            "type": "pong",
-            "version": VERSION,
-            "uptime_seconds": int(uptime),
-            "device_count": len(self._manager.devices),
-        }
-        if msg_id:
-            resp["id"] = msg_id
-        return resp
-
-    def _make_discover(self, msg_id: str | None) -> dict[str, Any]:
-        devices = [_device_to_dict(d) for d in self._manager.devices]
-        resp: dict[str, Any] = {"type": "discover_response", "devices": devices}
-        if msg_id:
-            resp["id"] = msg_id
-        return resp
-
-    def _make_topology(self, msg_id: str | None) -> dict[str, Any]:
-        devices = [_device_to_dict(d) for d in self._manager.devices]
-        connections: list[dict[str, Any]] = []
-        for group in self._manager.groups:
-            connections.extend(_connection_to_dict(c) for c in group.topology.connections)
-        resp: dict[str, Any] = {
-            "type": "topology_response",
-            "devices": devices,
-            "connections": connections,
-        }
-        if msg_id:
-            resp["id"] = msg_id
-        return resp
-
-    def _make_config_values(self, msg: dict[str, Any]) -> dict[str, Any]:
-        uid = msg.get("uid")
-        msg_id = msg.get("id")
-        if uid is None:
-            return {"type": "error", "message": "missing uid"}
-        values = self._manager.get_config(uid)
-        resp: dict[str, Any] = {
-            "type": "config_values",
-            "uid": uid,
-            "values": [
-                {"item": cv.item, "value": cv.value, "min": cv.min_val, "max": cv.max_val}
-                for cv in values.values()
-            ],
-        }
-        if msg_id:
-            resp["id"] = msg_id
-        return resp
-
-    def _make_config_ack(self, msg: dict[str, Any]) -> dict[str, Any]:
-        uid = msg.get("uid")
-        item = msg.get("item")
-        value = msg.get("value")
-        msg_id = msg.get("id")
-        if uid is None or item is None or value is None:
-            return {"type": "error", "message": "missing uid/item/value"}
-        ok = self._manager.set_config(uid, int(item), int(value))
-        resp: dict[str, Any] = {"type": "config_ack", "uid": uid, "item": item, "ok": ok}
-        if msg_id:
-            resp["id"] = msg_id
-        return resp
-
-    def _make_frame_ack(self, msg: dict[str, Any]) -> dict[str, Any]:
-        uid = msg.get("uid")
-        pixels_b64 = msg.get("pixels", "")
-        if uid is None:
-            return {"type": "frame_ack", "uid": 0, "accepted": False}
-        try:
-            pixels = base64.b64decode(pixels_b64)
-        except Exception:
-            return {"type": "frame_ack", "uid": uid, "accepted": False}
-        accepted = self._write_rgb888_frame(uid, pixels)
-        return {"type": "frame_ack", "uid": uid, "accepted": accepted}
-
-    def _make_brightness_ack(self, msg: dict[str, Any]) -> dict[str, Any]:
-        uid = msg.get("uid")
-        value = msg.get("value", 255)
-        if uid is None:
-            return {"type": "brightness_ack", "uid": 0, "ok": False}
-        self._brightness_store[uid] = max(0, min(255, value))
-        return {"type": "brightness_ack", "uid": uid, "ok": True}
-
-    # ── LED frame ─────────────────────────────────────────────────────────
-
-    def _handle_binary_ws(self, data: bytes) -> None:
-        """Process a binary WebSocket frame as an LED frame write."""
-        try:
-            frame = parse_binary_frame(data)
-        except ValueError:
-            return
-        self._write_rgb888_frame(frame.uid, frame.pixels)
-
-    def _write_rgb888_frame(self, uid: int, pixels: bytes) -> bool:
-        """Convert RGB888 → RGB565 and write to device heap."""
-        if len(pixels) != PIXEL_DATA_SIZE:
-            return False
-        device = self._manager.find_device(uid)
-        if device is None:
-            return False
-
-        brightness = self._brightness_store.get(uid, 255)
-        grid = LEDGrid()
-
-        for i in range(225):
-            offset = i * 3
-            r, g, b = pixels[offset], pixels[offset + 1], pixels[offset + 2]
-            if brightness < 255:
-                r = (r * brightness) // 255
-                g = (g * brightness) // 255
-                b = (b * brightness) // 255
-            from blocksd.led.bitmap import Color
-
-            grid.set_pixel(i % 15, i // 15, Color(r, g, b))
-
-        return self._manager.set_led_data(uid, grid.heap_data)

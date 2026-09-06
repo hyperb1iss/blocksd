@@ -16,6 +16,8 @@ from blocksd.logging import setup_logging
 from blocksd.topology.manager import TopologyManager
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from blocksd.device.models import ButtonEvent, DeviceInfo, Topology, TouchEvent
 
 log = logging.getLogger(__name__)
@@ -48,45 +50,49 @@ async def run_daemon(config: DaemonConfig) -> None:
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
 
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, stop_event.set)
+    async with contextlib.AsyncExitStack() as cleanup:
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, stop_event.set)
+            cleanup.callback(loop.remove_signal_handler, sig)
 
-    # Start servers BEFORE the topology manager so all event callbacks
-    # are wired before any DeviceGroups are created (groups copy the
-    # callback lists at creation time).
-    if config.api_enabled:
-        await api_server.start()
+        # Register cleanup before startup so partial initialization is unwound too.
+        if config.api_enabled:
+            cleanup.push_async_callback(api_server.stop)
+            await api_server.start()
+        if config.web_enabled:
+            cleanup.push_async_callback(web_server.stop)
+            await web_server.start()
 
-    if config.web_enabled:
-        await web_server.start()
+        manager_task = asyncio.create_task(manager.run(), name="topology-manager")
+        stop_task = asyncio.create_task(stop_event.wait(), name="shutdown-signal")
+        tasks = [manager_task, stop_task]
+        cleanup.push_async_callback(_cancel_tasks, tasks)
+        watchdog_task = _start_watchdog(stop_event)
+        if watchdog_task is not None:
+            tasks.append(watchdog_task)
 
-    manager_task = asyncio.create_task(manager.run(), name="topology-manager")
-    watchdog_task = _start_watchdog(stop_event)
-
-    sdnotify.ready()
-    sdnotify.status("Scanning for ROLI devices")
-    log.info("blocksd ready — scanning for ROLI devices")
-    await stop_event.wait()
-
-    sdnotify.stopping()
-    log.info("Shutting down...")
-
-    if config.web_enabled:
-        await web_server.stop()
-
-    if config.api_enabled:
-        await api_server.stop()
-
-    manager_task.cancel()
-    if watchdog_task:
-        watchdog_task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await manager_task
-    if watchdog_task:
-        with contextlib.suppress(asyncio.CancelledError):
-            await watchdog_task
+        sdnotify.ready()
+        sdnotify.status("Scanning for ROLI devices")
+        log.info("blocksd ready: scanning for ROLI devices")
+        try:
+            done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                if task is not stop_task:
+                    await task
+                    if not stop_event.is_set():
+                        raise RuntimeError(f"Daemon task {task.get_name()} stopped unexpectedly")
+        finally:
+            sdnotify.stopping()
+            log.info("Shutting down...")
 
     log.info("blocksd stopped")
+
+
+async def _cancel_tasks(tasks: Sequence[asyncio.Task[object]]) -> None:
+    """Join every owned task before releasing servers and signal handlers."""
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 
 def _start_watchdog(stop_event: asyncio.Event) -> asyncio.Task[None] | None:

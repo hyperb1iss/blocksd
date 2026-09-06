@@ -36,6 +36,7 @@ class TopologyManager:
     def __init__(self) -> None:
         self._groups: dict[str, _GroupEntry] = {}  # port name → entry
         self._tasks: dict[str, asyncio.Task[None]] = {}
+        self._running_tasks: set[asyncio.Task[None]] = set()
         self.on_device_added: list[Callable[[DeviceInfo], None]] = []
         self.on_device_removed: list[Callable[[DeviceInfo], None]] = []
         self.on_topology_changed: list[Callable[[Topology], None]] = []
@@ -50,8 +51,6 @@ class TopologyManager:
             while True:
                 await self._scan_cycle()
                 await asyncio.sleep(DEVICE_SCAN_INTERVAL_S)
-        except asyncio.CancelledError:
-            pass
         finally:
             await self._shutdown()
             log.info("Topology manager stopped")
@@ -127,14 +126,15 @@ class TopologyManager:
             return
 
         group = DeviceGroup(conn)
-        group.on_device_added = list(self.on_device_added)
-        group.on_device_removed = list(self.on_device_removed)
-        group.on_topology_changed = list(self.on_topology_changed)
-        group.on_touch_event = list(self.on_touch_event)
-        group.on_button_event = list(self.on_button_event)
-        group.on_config_changed = list(self.on_config_changed)
+        group.on_device_added = self.on_device_added
+        group.on_device_removed = self.on_device_removed
+        group.on_topology_changed = self.on_topology_changed
+        group.on_touch_event = self.on_touch_event
+        group.on_button_event = self.on_button_event
+        group.on_config_changed = self.on_config_changed
 
         task = asyncio.create_task(group.run(), name=f"group:{pair.name}")
+        self._running_tasks.add(task)
         task.add_done_callback(lambda t, n=pair.name: self._on_group_done(n, t))
 
         self._groups[pair.name] = _GroupEntry(group, pair)
@@ -150,21 +150,28 @@ class TopologyManager:
 
     def _on_group_done(self, name: str, task: asyncio.Task[None]) -> None:
         """Handle a group task completing (disconnection or failure)."""
-        self._groups.pop(name, None)
-        self._tasks.pop(name, None)
-        if task.exception():
-            log.error("Device group %s failed: %s", name, task.exception())
+        self._running_tasks.discard(task)
+        # A disconnected port may already have a replacement group by this point.
+        if self._tasks.get(name) is task:
+            self._groups.pop(name, None)
+            self._tasks.pop(name, None)
+        if task.cancelled():
+            return
+        if error := task.exception():
+            log.error("Device group %s failed: %s", name, error)
         else:
             log.info("Device group %s finished", name)
 
     async def _shutdown(self) -> None:
-        """Cancel all group tasks and wait for cleanup."""
-        for task in self._tasks.values():
-            task.cancel()
-        if self._tasks:
-            await asyncio.gather(*self._tasks.values(), return_exceptions=True)
+        """Join active and retiring groups before relinquishing MIDI ownership."""
+        tasks = list(self._running_tasks)
+        for task in tasks:
+            if not task.cancelling():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         self._groups.clear()
         self._tasks.clear()
+        self._running_tasks.clear()
 
 
 class _GroupEntry:
