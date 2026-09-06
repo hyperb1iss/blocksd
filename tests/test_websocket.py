@@ -61,7 +61,7 @@ class TestBuildFrame:
 
 class TestReadFrame:
     @pytest.fixture
-    def _reader(self) -> asyncio.StreamReader:
+    async def _reader(self) -> asyncio.StreamReader:
         return asyncio.StreamReader()
 
     async def test_read_masked_text(self, _reader: asyncio.StreamReader) -> None:

@@ -129,12 +129,12 @@ def _decode_packet_index(packet: bytes) -> int:
 class TestDeviceGroupInit:
     def test_starts_in_requesting_serial_state(self) -> None:
         conn = MockMidiConnection()
-        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group = DeviceGroup(conn)
         assert group.state == GroupState.REQUESTING_SERIAL
 
     def test_sends_serial_request_on_run(self) -> None:
         conn = MockMidiConnection()
-        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group = DeviceGroup(conn)
 
         # Run one tick manually
         group._serial_start_time = __import__("time").monotonic()
@@ -146,7 +146,7 @@ class TestDeviceGroupInit:
 class TestSerialHandling:
     def test_serial_response_updates_master(self) -> None:
         conn = MockMidiConnection()
-        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group = DeviceGroup(conn)
         group.state = GroupState.REQUESTING_SERIAL
 
         response = _build_serial_response("LPB12345678ABCDE")
@@ -157,7 +157,7 @@ class TestSerialHandling:
 
     def test_uid_from_serial_is_deterministic(self) -> None:
         conn = MockMidiConnection()
-        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group = DeviceGroup(conn)
 
         uid = group._uid_from_serial("LPB12345678ABCDE")
 
@@ -168,7 +168,7 @@ class TestSerialHandling:
 class TestTopologyHandling:
     def test_topology_creates_devices(self) -> None:
         conn = MockMidiConnection()
-        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group = DeviceGroup(conn)
         group.state = GroupState.REQUESTING_TOPOLOGY
 
         topology_pkt = _build_topology_packet(["LPB0000000000000"])
@@ -181,7 +181,7 @@ class TestTopologyHandling:
 
     def test_topology_with_two_devices(self) -> None:
         conn = MockMidiConnection()
-        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group = DeviceGroup(conn)
         group.state = GroupState.REQUESTING_TOPOLOGY
 
         topology_pkt = _build_topology_packet(
@@ -195,7 +195,7 @@ class TestTopologyHandling:
 
     def test_topology_sets_master_from_first_device(self) -> None:
         conn = MockMidiConnection()
-        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group = DeviceGroup(conn)
         group.state = GroupState.REQUESTING_TOPOLOGY
 
         topology_pkt = _build_topology_packet(["LPB0000000000000"])
@@ -209,7 +209,7 @@ class TestTopologyHandling:
 class TestACKHandling:
     def test_ack_creates_ping_entry(self) -> None:
         conn = MockMidiConnection()
-        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group = DeviceGroup(conn)
         group.state = GroupState.REQUESTING_TOPOLOGY
 
         # Set up topology first
@@ -224,7 +224,7 @@ class TestACKHandling:
 
     def test_device_added_callback_on_first_ack(self) -> None:
         conn = MockMidiConnection()
-        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group = DeviceGroup(conn)
         group.state = GroupState.REQUESTING_TOPOLOGY
 
         added: list[object] = []
@@ -240,7 +240,7 @@ class TestACKHandling:
 
     def test_set_led_data_flushes_immediately(self) -> None:
         conn = MockMidiConnection()
-        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group = DeviceGroup(conn)
         group.state = GroupState.REQUESTING_TOPOLOGY
 
         topology_pkt = _build_topology_packet(["LPB0000000000000"])
@@ -258,7 +258,7 @@ class TestACKHandling:
 
     def test_set_led_data_rejects_lumi_bitmap_frames(self) -> None:
         conn = MockMidiConnection()
-        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group = DeviceGroup(conn)
         group.state = GroupState.REQUESTING_TOPOLOGY
 
         topology_pkt = _build_topology_packet(["LKB0000000000000"])
@@ -276,7 +276,7 @@ class TestACKHandling:
 
     def test_ack_flushes_follow_up_heap_packets(self) -> None:
         conn = MockMidiConnection()
-        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group = DeviceGroup(conn)
         group.state = GroupState.REQUESTING_TOPOLOGY
 
         topology_pkt = _build_topology_packet(["LPB0000000000000"])
@@ -305,7 +305,7 @@ class TestACKHandling:
 class TestAPIActivation:
     def test_sends_api_mode_commands_for_unconnected(self) -> None:
         conn = MockMidiConnection()
-        group = DeviceGroup(conn)  # type: ignore[arg-type]
+        group = DeviceGroup(conn)
         group.state = GroupState.REQUESTING_TOPOLOGY
 
         topology_pkt = _build_topology_packet(["LPB0000000000000"])

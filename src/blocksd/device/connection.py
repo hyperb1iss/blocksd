@@ -9,12 +9,42 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from rtmidi import MidiIn, MidiOut
 
 log = logging.getLogger(__name__)
+
+
+class MidiTransport(Protocol):
+    """SysEx transport required by the device lifecycle state machine."""
+
+    @property
+    def name(self) -> str:
+        """Human-readable port name for diagnostics."""
+        ...
+
+    @property
+    def is_open(self) -> bool:
+        """Whether the transport can send and receive messages."""
+        ...
+
+    def send(self, data: bytes | bytearray) -> bool:
+        """Send one SysEx message, returning whether it was accepted."""
+        ...
+
+    def drain(self) -> list[bytes]:
+        """Return queued messages without waiting."""
+        ...
+
+    async def recv(self, timeout: float | None = None) -> bytes | None:  # noqa: ASYNC109
+        """Receive one message, returning None when the timeout expires."""
+        ...
+
+    def close(self) -> None:
+        """Release transport resources; repeated calls are harmless."""
+        ...
 
 
 class MidiConnection:
