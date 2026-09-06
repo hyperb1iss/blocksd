@@ -69,7 +69,8 @@ class TestWebServerIntegration:
         await srv.stop()
 
     def _get_port(self, server: WebServer) -> int:
-        sockets = server._server.sockets  # type: ignore[union-attr]
+        assert isinstance(server._server, asyncio.Server)
+        sockets = server._server.sockets
         return sockets[0].getsockname()[1]
 
     async def test_http_serves_index(self, server: WebServer) -> None:

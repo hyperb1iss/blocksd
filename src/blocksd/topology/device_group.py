@@ -43,7 +43,7 @@ from blocksd.protocol.serial import is_serial_response, parse_serial_response
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from blocksd.device.connection import MidiConnection
+    from blocksd.device.connection import MidiTransport
 
 log = logging.getLogger(__name__)
 
@@ -113,7 +113,7 @@ class DeviceGroup:
     Implements the PacketHandler protocol to receive decoded device messages.
     """
 
-    def __init__(self, conn: MidiConnection) -> None:
+    def __init__(self, conn: MidiTransport) -> None:
         self.conn = conn
         self.state = GroupState.REQUESTING_SERIAL
         self.topology = Topology()

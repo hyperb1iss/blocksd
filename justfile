@@ -1,70 +1,89 @@
-# blocksd — ROLI Blocks Linux Daemon
+# blocksd development commands
 
-# Default: show available recipes
 default:
     @just --list
 
-# Install all dependencies (including dev)
-install:
-    uv sync
+# Install all three projects from their lockfiles
+install: install-python install-web install-docs
 
-# Run the daemon
+install-python:
+    uv sync --locked
+
+install-web:
+    pnpm --dir web install --frozen-lockfile
+
+install-docs:
+    pnpm --dir docs install --frozen-lockfile
+
 run *ARGS:
-    uv run blocksd {{ ARGS }}
+    uv run --locked blocksd {{ ARGS }}
 
-# Run the full test suite
 test *ARGS:
-    uv run pytest {{ ARGS }}
+    uv run --locked pytest {{ ARGS }}
 
-# Run tests with verbose output
 test-v *ARGS:
-    uv run pytest -v {{ ARGS }}
+    uv run --locked pytest -v {{ ARGS }}
 
-# Run a specific test module (e.g., just test-mod protocol)
 test-mod MODULE *ARGS:
-    uv run pytest tests/{{ MODULE }} {{ ARGS }}
+    uv run --locked pytest tests/{{ MODULE }} {{ ARGS }}
 
-# Lint with ruff
 lint:
-    uv run ruff check src tests
+    uv run --locked ruff check src tests scripts
 
-# Auto-fix lint issues
 lint-fix:
-    uv run ruff check --fix src tests
+    uv run --locked ruff check --fix src tests scripts
 
-# Format Python code
 fmt:
-    uv run ruff format src tests
+    uv run --locked ruff format src tests scripts
 
-# Format markdown, yaml, and json files
 fmt-docs:
-    npx prettier --write "**/*.md" "**/*.yml" "**/*.yaml" "**/*.json" "!uv.lock"
+    pnpm --dir docs exec prettier --write "**/*.md" ../README.md ../CONTRIBUTING.md "../.github/**/*.yml"
 
-# Check formatting without changes
 fmt-check:
-    uv run ruff format --check src tests
-    npx prettier --check "**/*.md" "**/*.yml" "**/*.yaml" "**/*.json" "!uv.lock"
+    uv run --locked ruff format --check src tests scripts
 
-# Type check with ty
 typecheck:
-    uv run ty check src
+    uv run --locked ty check src tests scripts
 
-# Run all checks (lint + format check + typecheck + tests)
-check: lint fmt-check typecheck test
+check-python: lint fmt-check typecheck test
 
-# Fix everything auto-fixable (lint + format)
-fix: lint-fix fmt fmt-docs
+# Same Python, dashboard, docs and installed-package gates as CI
+check: check-python lint-web docs-build build-check
 
-# Clean build artifacts and caches
+fix: lint-fix fmt
+
+web-dev:
+    pnpm --dir web dev
+
+lint-web:
+    pnpm --dir web check
+
+check-web: lint-web web-build
+
+web-build:
+    pnpm --dir web build
+
+docs-dev:
+    pnpm --dir docs dev
+
+docs-build:
+    pnpm --dir docs lint
+    pnpm --dir docs build
+
+# Include the dashboard in the wheel and source distribution
+build: web-build
+    uv lock --check
+    uv build --clear
+
+# Use an isolated environment to prove the wheel works without the checkout
+build-check: build
+    uv run --no-project --with dist/*.whl python scripts/check_distribution.py
+
+# Clean Python artifacts; JavaScript build commands replace their own output
 clean:
     rm -rf dist build .pytest_cache .ruff_cache
-    find src tests -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+    find src tests scripts -type d -name __pycache__ -exec rm -rf {} +
 
-# Build the package
-build:
-    uv build
-
-# Install systemd service (requires sudo)
 install-service:
     sudo cp systemd/blocksd.service /etc/systemd/system/
     sudo cp systemd/99-roli-blocks.rules /etc/udev/rules.d/
@@ -72,10 +91,8 @@ install-service:
     sudo udevadm control --reload-rules
     @echo "Service installed. Enable with: sudo systemctl enable --now blocksd"
 
-# Build AUR package locally (requires makepkg)
 aur-build:
     cd packaging/aur/blocksd && makepkg -si
 
-# Show dependency tree
 deps:
-    uv tree
+    uv tree --locked

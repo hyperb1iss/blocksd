@@ -32,13 +32,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   release:
     name: Release
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    needs: checks
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -50,15 +56,18 @@ jobs:
 
       - name: Determine version
         id: version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+          BUMP: ${{ inputs.bump }}
         run: |
           CURRENT=$(grep '^version' pyproject.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
           echo "Current version: $CURRENT"
 
-          if [[ -n "${{ inputs.version }}" ]]; then
-            VERSION="${{ inputs.version }}"
+          if [[ -n "$REQUESTED_VERSION" ]]; then
+            VERSION="$REQUESTED_VERSION"
           else
             IFS='.' read -r MAJOR MINOR PATCH <<< "${CURRENT%%-*}"
-            case "${{ inputs.bump }}" in
+            case "$BUMP" in
               major) VERSION="$((MAJOR + 1)).0.0" ;;
               minor) VERSION="${MAJOR}.$((MINOR + 1)).0" ;;
               patch) VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
@@ -75,32 +84,41 @@ jobs:
             exit 1
           fi
 
-          echo "current=$CURRENT" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Releasing: $CURRENT → $VERSION"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - uses: actions/setup-python@v6
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
+          version: "0.12.10"
           python-version: "3.13"
+
+      - uses: ./.github/actions/setup-js
+      - run: pnpm --dir web build
 
       - name: Update version files
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
           sed -i "s/^pkgver=.*/pkgver=$VERSION/" packaging/aur/blocksd/PKGBUILD
+          uv lock
           echo "Updated pyproject.toml + PKGBUILD to $VERSION"
 
       - name: Build package
-        run: uv build
+        run: |
+          uv lock --check
+          uv build --clear
 
       - name: Commit version bump
         if: ${{ !inputs.dry_run }}
         run: |
-          git add pyproject.toml packaging/aur/blocksd/PKGBUILD
-          git commit -m "release: v${{ steps.version.outputs.version }}"
+          git add pyproject.toml uv.lock packaging/aur/blocksd/PKGBUILD
+          git commit -F - <<'MESSAGE'
+          chore(release): prepare v${{ steps.version.outputs.version }}
+
+          Align the package, lockfile and AUR version for the release.
+          MESSAGE
 
       - name: Create and push tag
         if: ${{ !inputs.dry_run }}
@@ -118,12 +136,14 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## Release ${{ inputs.dry_run && '[DRY RUN] ' || '' }}v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            echo "Build passed. Ready to release." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "Released: ${{ steps.version.outputs.current }} → ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "[blocksd on PyPI](https://pypi.org/project/blocksd/${{ steps.version.outputs.version }}/)" >> $GITHUB_STEP_SUMMARY
-          fi
+          {
+            echo "## Release ${{ inputs.dry_run && '[DRY RUN] ' || '' }}v${{ steps.version.outputs.version }}"
+            echo ""
+            if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+              echo "Build passed. Ready to release."
+            else
+              echo "Released: ${{ steps.version.outputs.current }} to ${{ steps.version.outputs.version }}"
+              echo ""
+              echo "[blocksd on PyPI](https://pypi.org/project/blocksd/${{ steps.version.outputs.version }}/)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

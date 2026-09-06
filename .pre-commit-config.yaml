@@ -1,10 +1,15 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
+        exclude: (^|/)pnpm-lock\.yaml$
+      - id: check-yaml
+        name: Check pnpm lockfile YAML
+        files: (^|/)pnpm-lock\.yaml$
+        args: [--allow-multiple-documents]
       - id: check-toml
       - id: check-added-large-files
         args: ["--maxkb=1000"]
@@ -13,9 +18,21 @@ repos:
       - id: mixed-line-ending
         args: ["--fix=lf"]
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.0
+  - repo: local
     hooks:
-      - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-check
+        name: Ruff lint (locked)
+        entry: uv run --locked ruff check --fix --exit-non-zero-on-fix
+        language: system
+        types_or: [python, pyi]
       - id: ruff-format
+        name: Ruff format (locked)
+        entry: uv run --locked ruff format
+        language: system
+        types_or: [python, pyi]
+      - id: uv-lock
+        name: Check dependency lock
+        entry: uv lock --check
+        language: system
+        files: ^(pyproject\.toml|uv\.lock)$
+        pass_filenames: false

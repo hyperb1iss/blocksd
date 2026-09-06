@@ -17,7 +17,7 @@ from blocksd.api.http import (
 
 class TestParseRequest:
     @pytest.fixture
-    def _reader(self) -> asyncio.StreamReader:
+    async def _reader(self) -> asyncio.StreamReader:
         return asyncio.StreamReader()
 
     async def test_get_request(self, _reader: asyncio.StreamReader) -> None:

@@ -1,5 +1,6 @@
 import DefaultTheme from "vitepress/theme";
-import type { Theme } from "vitepress";
+import { type Theme, useRouter } from "vitepress";
+import type { Mermaid, MermaidConfig } from "mermaid";
 import "./silkcircuit.css";
 
 declare global {
@@ -11,6 +12,7 @@ declare global {
 export default {
   extends: DefaultTheme,
   setup() {
+    const router = useRouter();
     if (typeof window !== "undefined") {
       const isDarkMode = () =>
         document.documentElement.classList.contains("dark") ||
@@ -56,7 +58,7 @@ export default {
         fontFamily: "JetBrains Mono, Fira Code, SF Mono, monospace",
       };
 
-      const getMermaidConfig = () => ({
+      const getMermaidConfig = (): MermaidConfig => ({
         startOnLoad: false,
         theme: isDarkMode() ? "dark" : "neutral",
         themeVariables: isDarkMode() ? darkThemeVariables : lightThemeVariables,
@@ -67,12 +69,10 @@ export default {
         },
       });
 
-      let mermaidLoadPromise: Promise<any> | null = null;
+      let mermaidLoadPromise: Promise<Mermaid> | null = null;
       const ensureMermaid = async () => {
         if (!mermaidLoadPromise) {
-          mermaidLoadPromise = import(
-            /* @vite-ignore */ "mermaid/dist/mermaid.esm.mjs"
-          ).then((mod) => mod.default ?? mod);
+          mermaidLoadPromise = import("mermaid").then((mod) => mod.default);
         }
         return mermaidLoadPromise;
       };
@@ -219,9 +219,9 @@ export default {
         setTimeout(renderMermaid, 100);
       }
 
-      window.addEventListener("vitepress:after-route-changed", () => {
-        setTimeout(renderMermaid, 100);
-      });
+      router.onAfterRouteChange = () => {
+        requestAnimationFrame(() => renderMermaid());
+      };
     }
   },
 } satisfies Theme;

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.7/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.12/schema.json",
   "assist": {
     "actions": {
       "source": {
@@ -29,7 +29,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "correctness": {
         "useExhaustiveDependencies": "warn",
         "noUnusedVariables": "warn",
@@ -43,5 +43,14 @@
         "noArrayIndexKey": "off"
       }
     }
+  },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true,
+    "root": ".."
+  },
+  "files": {
+    "includes": ["**", "!!**/tsconfig.tsbuildinfo", "!!**/pnpm-lock.yaml"]
   }
 }

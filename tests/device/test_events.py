@@ -45,7 +45,7 @@ class TestTouchEvent:
     def test_frozen(self):
         event = TouchEvent.from_raw(1, 0, 0, 0, 0, 0, 0, 0, 0, False, False)
         with pytest.raises(AttributeError):
-            event.x = 0.5  # type: ignore[misc]
+            event.__setattr__("x", 0.5)
 
 
 class TestButtonEvent:
@@ -58,7 +58,7 @@ class TestButtonEvent:
     def test_frozen(self):
         event = ButtonEvent(uid=1, timestamp=0, button_id=0, is_down=False)
         with pytest.raises(AttributeError):
-            event.is_down = True  # type: ignore[misc]
+            event.__setattr__("is_down", True)
 
 
 class TestConfigValue:
