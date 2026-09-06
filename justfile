@@ -77,7 +77,7 @@ build: web-build
 
 # Use an isolated environment to prove the wheel works without the checkout
 build-check: build
-    uv run --no-project --with dist/*.whl python scripts/check_distribution.py
+    uv run --no-project --no-cache --with dist/*.whl python scripts/check_distribution.py
 
 # Clean Python artifacts; JavaScript build commands replace their own output
 clean:

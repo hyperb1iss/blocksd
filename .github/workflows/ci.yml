@@ -57,7 +57,7 @@ jobs:
       - run: uv lock --check
       - run: uv build --clear
       - name: Verify installed distribution
-        run: uv run --no-project --with dist/*.whl python scripts/check_distribution.py
+        run: uv run --no-project --no-cache --with dist/*.whl python scripts/check_distribution.py
 
   docs:
     name: Documentation
