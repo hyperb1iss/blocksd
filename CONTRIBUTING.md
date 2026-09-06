@@ -10,6 +10,8 @@ The RtMidi extension needs native development headers when a wheel is unavailabl
 sudo apt-get install build-essential pkg-config libasound2-dev libjack-jackd2-dev
 ```
 
+On macOS, install Xcode Command Line Tools (`xcode-select --install`) if RtMidi needs to compile. macOS uses CoreMIDI and does not require ALSA/JACK headers. Python tests and installed-wheel checks run on both Linux and macOS in CI.
+
 Clone the repository and install the locked dependencies:
 
 ```bash
