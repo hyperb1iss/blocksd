@@ -51,20 +51,11 @@ ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter 
 
 ### macOS
 
-macOS requires v0.6.0 or newer. To run from source, build the dashboard and start the daemon in the foreground:
-
 ```bash
-git clone https://github.com/hyperb1iss/blocksd.git
-cd blocksd
-uv sync --locked
-pnpm --dir web install --frozen-lockfile
-pnpm --dir web build
-uv run --locked blocksd run -v
+brew install hyperb1iss/tap/blocksd
 ```
 
-After stopping the foreground process, run `uv run --locked blocksd install` to install a per-user LaunchAgent that starts on login. macOS does not need udev rules or sudo. Keep the checkout and its virtual environment at the installed path.
-
-The macOS runtime and installer have automated coverage. USB LUMI Keys and a DNA-connected Lightpad Block M have been confirmed entering API mode. Sleep/wake and DAW coexistence still need hardware validation. See the [macOS installation guide](https://hyperb1iss.github.io/blocksd/guide/installation#macos) for service commands, Homebrew packaging status, and the hardware checklist.
+Run `blocksd run` in the foreground, or `blocksd install` to start at login. No sudo needed. See the [macOS guide](https://hyperb1iss.github.io/blocksd/guide/installation#macos) for details.
 
 ### Quick Install
 
