@@ -3,6 +3,8 @@
 import asyncio
 import base64
 import json
+import tempfile
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -11,13 +13,20 @@ from blocksd.api.server import ApiServer, WebServer
 from blocksd.topology.manager import TopologyManager
 
 
+@pytest.fixture
+def socket_dir():
+    """Unix socket addresses must fit even when macOS TMPDIR is long."""
+    with tempfile.TemporaryDirectory(prefix="blocksd-", dir="/tmp") as directory:
+        yield Path(directory)
+
+
 @pytest.mark.parametrize("transport", ["unix", "tcp"])
-async def test_stop_closes_idle_clients_and_detaches_events(tmp_path, transport):
+async def test_stop_closes_idle_clients_and_detaches_events(socket_dir, transport):
     manager = TopologyManager()
     if transport == "unix":
-        server = ApiServer(manager, tmp_path / "api.sock")
+        server = ApiServer(manager, socket_dir / "api.sock")
         await server.start()
-        reader, writer = await asyncio.open_unix_connection(str(tmp_path / "api.sock"))
+        reader, writer = await asyncio.open_unix_connection(str(socket_dir / "api.sock"))
     else:
         server = WebServer(manager, port=0)
         await server.start()
@@ -52,8 +61,8 @@ async def test_socket_path_does_not_replace_regular_file(tmp_path):
     assert path.read_text() == "keep me"
 
 
-async def test_second_server_cannot_unlink_active_socket(tmp_path):
-    path = tmp_path / "api.sock"
+async def test_second_server_cannot_unlink_active_socket(socket_dir):
+    path = socket_dir / "api.sock"
     first = ApiServer(TopologyManager(), path)
     second = ApiServer(TopologyManager(), path)
     await first.start()
@@ -185,7 +194,7 @@ async def test_invalid_config_retains_request_id(server_class, value):
 
 @pytest.mark.parametrize("transport", ["unix", "websocket"])
 async def test_transport_keeps_connection_after_compatibility_requests(
-    tmp_path, monkeypatch, transport
+    socket_dir, monkeypatch, transport
 ):
     from blocksd.api.websocket import read_frame
     from tests.test_web_server import _build_masked_frame
@@ -194,9 +203,9 @@ async def test_transport_keeps_connection_after_compatibility_requests(
     set_config = Mock(return_value=True)
     monkeypatch.setattr(manager, "set_config", set_config)
     if transport == "unix":
-        server = ApiServer(manager, tmp_path / "compat.sock")
+        server = ApiServer(manager, socket_dir / "compat.sock")
         await server.start()
-        reader, writer = await asyncio.open_unix_connection(str(tmp_path / "compat.sock"))
+        reader, writer = await asyncio.open_unix_connection(str(socket_dir / "compat.sock"))
     else:
         server = WebServer(manager, port=0)
         await server.start()
