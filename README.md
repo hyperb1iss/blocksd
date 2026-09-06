@@ -64,7 +64,7 @@ uv run --locked blocksd run -v
 
 After stopping the foreground process, run `uv run --locked blocksd install` to install a per-user LaunchAgent that starts on login. macOS does not need udev rules or sudo. Keep the checkout and its virtual environment at the installed path.
 
-The macOS runtime and installer have automated coverage. Hardware handshake, sleep/wake, and DAW coexistence still need validation with connected Blocks. See the [macOS installation guide](https://hyperb1iss.github.io/blocksd/guide/installation#macos) for service commands and the hardware checklist.
+The macOS runtime and installer have automated coverage. USB LUMI Keys and a DNA-connected Lightpad Block M have been confirmed entering API mode. Sleep/wake and DAW coexistence still need hardware validation. See the [macOS installation guide](https://hyperb1iss.github.io/blocksd/guide/installation#macos) for service commands, Homebrew packaging status, and the hardware checklist.
 
 ### Quick Install
 

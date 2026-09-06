@@ -109,6 +109,7 @@ jobs:
         run: |
           uv lock --check
           uv build --clear
+          uv run --no-project python scripts/generate_homebrew.py dist/blocksd-*.tar.gz --output dist/blocksd.rb
 
       - name: Commit version bump
         if: ${{ !inputs.dry_run }}

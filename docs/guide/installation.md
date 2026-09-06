@@ -46,7 +46,18 @@ CoreMIDI scanning, runtime startup, and installer behavior can be checked withou
 - Recovery after sleep/wake.
 - Concurrent MIDI use with your DAW. Close ROLI Dashboard during the protocol check so another host does not change API mode.
 
-Hardware acceptance remains pending. The existing LittleFoot renderer limitation also applies on macOS: accepted LED writes do not prove visible output.
+USB LUMI Keys and a DNA-connected Lightpad Block M have been confirmed entering API mode on macOS. Sleep/wake and DAW coexistence still need hardware acceptance testing. The existing LittleFoot renderer limitation also applies on macOS: accepted LED writes do not prove visible output.
+
+### Homebrew packaging
+
+The next release includes a Homebrew formula for `hyperb1iss/tap`. The formula must be merged into the tap before this install path is available:
+
+```bash
+brew install hyperb1iss/tap/blocksd
+blocksd run
+```
+
+After stopping the foreground process, run `blocksd install` to enable startup at login. Homebrew installation does not start a daemon automatically. Run `blocksd install` again after upgrades to refresh the LaunchAgent's executable path. Before `brew uninstall blocksd`, run `blocksd uninstall` to remove the agent.
 
 If python-rtmidi builds from source, install Xcode Command Line Tools (`xcode-select --install`). CoreMIDI is the native backend; ALSA/JACK packages are not needed.
 

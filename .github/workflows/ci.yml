@@ -58,6 +58,18 @@ jobs:
       - run: uv build --clear
       - name: Verify installed distribution
         run: uv run --no-project --no-cache --with dist/*.whl python scripts/check_distribution.py
+      - name: Verify Homebrew installation
+        if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: "1"
+          HOMEBREW_NO_ASK: "1"
+        run: |
+          brew tap-new blocksd/ci
+          uv run --no-project python scripts/generate_homebrew.py dist/blocksd-*.tar.gz \
+            --local --output "$(brew --repository blocksd/ci)/Formula/blocksd.rb"
+          brew install --build-from-source blocksd/ci/blocksd
+          brew test blocksd/ci/blocksd
 
   docs:
     name: Documentation
