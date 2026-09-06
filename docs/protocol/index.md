@@ -69,7 +69,7 @@ Messages flow in both directions. Host-to-device messages include commands (begi
 
 ## USB Device Identification
 
-ROLI devices use vendor ID `0x2AF4`. blocksd identifies devices by scanning MIDI port names for "BLOCK" or "Block", then validates against the USB vendor ID via sysfs.
+ROLI devices use vendor ID `0x2AF4`. blocksd identifies devices by scanning MIDI port names for "BLOCK" or "Block". USB IDs are reference information; the detector does not consult sysfs.
 
 | USB PID  | Device              |
 | -------- | ------------------- |

@@ -23,7 +23,7 @@ stateDiagram-v2
 
 ### 1. Scan MIDI Ports
 
-The topology manager polls MIDI ports every 1.5 seconds (configurable via `scan_interval`). It looks for port names containing "BLOCK" or "Block", then validates the USB vendor ID (`0x2AF4`) via sysfs as a secondary check.
+The topology manager polls MIDI ports every 1.5 seconds (currently a runtime constant). It looks for port names containing "BLOCK" or "Block". Inputs and outputs are paired by normalized name and occurrence.
 
 ### 2. Open MIDI Connection
 
@@ -31,7 +31,7 @@ When a matching port is found, blocksd opens the MIDI input and output pair. The
 
 ### 3. Request Serial Number
 
-blocksd sends the serial dump request: `F0 00 21 10 78 3F F7`. This is retried every 300ms until a response arrives. The response contains a MAC address prefix (`48:B6:20:`) followed by the 16-character serial number.
+blocksd sends the serial dump request: `F0 00 21 10 78 3F F7`. This is retried every 300ms for up to 5 seconds. The response contains a MAC address prefix (`48:B6:20:`) followed by the 16-character serial number.
 
 ### 4. Parse Serial and Identify Device
 
@@ -65,7 +65,7 @@ Each ping is a `deviceCommandMessage` with command `0x03`. The device responds w
 
 ### 9. Monitor ACKs
 
-blocksd tracks the last ACK time for each device. If a device hasn't responded within 5000ms, it's considered disconnected. The daemon removes the device from its internal state and emits a `device_removed` event.
+blocksd tracks the last ACK time for each device. If a device hasn't responded within 6000ms, it's considered disconnected. The daemon removes the device from its internal state and emits a `device_removed` event.
 
 ### 10. Handle Topology Changes
 
@@ -109,9 +109,9 @@ sequenceDiagram
 
 The lifecycle is designed to be self-healing:
 
-- **Serial timeout**: retried every 300ms until the device responds
-- **Topology timeout**: re-requested after a configurable delay
-- **Missed ACK**: device is marked as timed out after 5000ms, then rediscovered
+- **Serial timeout**: retried every 300ms for up to 5 seconds, then topology discovery proceeds without the master serial
+- **Topology timeout**: re-requested using the runtime retry constants
+- **Missed ACK**: device is marked as timed out after 6000ms, then rediscovered
 - **MIDI port disappears**: the DeviceGroup is destroyed and all device state is cleaned up
 - **Unexpected disconnect**: the daemon continues scanning and will reconnect automatically when the device reappears
 

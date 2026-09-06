@@ -56,7 +56,7 @@ artifacts = ["src/blocksd/web/static/**"]
 [tool.hatch.build.targets.sdist]
 include = [
     "/src", "/tests", "/web", "/systemd", "/docs",
-    "/LICENSE", "/README.md", "/pyproject.toml", "/uv.lock",
+    "/LICENSE", "/README.md", "/pyproject.toml", "/uv.lock", "/install.sh",
 ]
 artifacts = ["src/blocksd/web/static/**"]
 

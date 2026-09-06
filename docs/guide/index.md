@@ -4,7 +4,7 @@ ROLI Blocks are remarkable hardware: pressure-sensitive touch surfaces, 15x15 RG
 
 The catch: ROLI only ships drivers for Windows and macOS. Plug a Block into a Linux machine and you get a sad searching animation for about 5 seconds before the device powers off. No API mode activation, no touch events, no LED control, nothing.
 
-**blocksd** fixes this. It implements the complete ROLI Blocks protocol as a Linux daemon, reverse-engineered from JUCE SDK source code and extracted ROLI Connect installers.
+**blocksd** fixes this. It implements the ROLI Blocks host protocol as a Linux daemon, reverse-engineered from JUCE SDK source code and extracted ROLI Connect installers.
 
 ## What blocksd Does
 
@@ -59,7 +59,7 @@ See the [Vision document](https://github.com/hyperb1iss/blocksd/blob/main/VISION
 
 ## Project Status
 
-blocksd is in alpha, but the core feature set is complete and battle-tested on real hardware. The main gap is LittleFoot program upload, blocked by a firmware opcode incompatibility on v1.1.0 devices (the daemon works around this with unrolled fillPixel calls).
+blocksd is in alpha. Discovery and keepalive have prior hardware reports, but coverage varies by device and firmware. LittleFoot program upload is disabled because of firmware opcode incompatibilities. The unrolled fill program is also unreachable in the current daemon; accepted LED frames do not guarantee visible rendering. The hardware-independent test suite verifies software behavior, not device compatibility.
 
 | Phase                             | Status                |
 | --------------------------------- | --------------------- |

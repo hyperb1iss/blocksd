@@ -12,7 +12,7 @@ Common issues and how to fix them. If your problem isn't here, check the [GitHub
 lsusb | grep 2af4
 ```
 
-If the device appears in `lsusb` but not in `blocksd status`, the issue is MIDI port naming.
+If the device appears in `lsusb` but not in `blocksd status`, check ALSA driver binding, permissions, and MIDI port naming.
 
 **Check MIDI ports directly**:
 
@@ -57,13 +57,11 @@ Common causes:
 
 **Symptom**: `blocksd led solid '#ff00ff'` returns but the Lightpad doesn't change.
 
-**Is the daemon running?** LED commands connect to the running daemon via Unix socket. Start the daemon first:
+**Check the renderer limitation first.** The daemon currently skips LittleFoot program upload. Heap writes may be accepted without changing the display. See [LittleFoot status](./architecture/littlefoot).
 
-```bash
-blocksd run
-```
+The LED CLI opens its own MIDI session and stays running until Ctrl+C. Stop the service before using it; API clients should instead connect to the running daemon.
 
-**Is it a Lightpad?** Only Lightpad Block and Lightpad Block M support LED bitmap control. Other devices like LUMI Keys don't have an addressable LED grid.
+**Is it a Lightpad?** Only Lightpad Block and Lightpad Block M support LED bitmap control. The current bitmap API does not expose a grid for devices such as LUMI Keys.
 
 **Check the socket**:
 
@@ -80,7 +78,7 @@ ls -la $XDG_RUNTIME_DIR/blocksd/blocksd.sock
 The daemon should idle near 0% CPU when devices are connected and stable. High CPU usually means:
 
 - **Rapid reconnect loop**: a device is repeatedly connecting and disconnecting. Check `blocksd run -v` for rapid serial request cycles. This can happen with a damaged USB cable.
-- **Scan interval too low**: if you've set `scan_interval` below 0.5 seconds, the MIDI port polling may be consuming CPU.
+- **Concurrent hardware sessions**: the LED/config CLI and `status --probe` create their own MIDI sessions. Run them with the service stopped. The TOML timing fields currently have no runtime effect.
 
 ## Device Disconnects After 5 Seconds
 
@@ -139,9 +137,10 @@ blocksd install
 ss -tlnp | grep 9010
 ```
 
-Try a different port:
+If the service is already running, open `http://localhost:9010` directly. To use `ui`, stop the service first; changing only the HTTP port does not give the second daemon a separate Unix socket:
 
 ```bash
+systemctl --user stop blocksd
 blocksd ui --port 8080
 ```
 

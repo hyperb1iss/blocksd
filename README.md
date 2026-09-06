@@ -32,7 +32,7 @@
 
 ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter "API mode." Without it, they show a searching animation and eventually power off. There's no official Linux support.
 
-**blocksd** implements the full ROLI Blocks protocol: device discovery, topology management, API mode keepalive, LED control, touch events, and device configuration. Your Blocks stay alive and useful on Linux.
+**blocksd** implements the ROLI Blocks host protocol: device discovery, topology management, API mode keepalive, LED control, touch events, and device configuration. Your Blocks stay alive and useful on Linux.
 
 ## ✦ Features
 
@@ -44,7 +44,7 @@ ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter 
 | 💡 **LED Control**           | Lightpad / Lightpad M RGB565 bitmap grid, CLI patterns (solid, gradient, rainbow, checkerboard) |
 | 👆 **Touch & Button Events** | Normalized touch data (x/y/z/velocity) and button callbacks                                     |
 | ⚙️ **Device Config**         | Read/write device settings (sensitivity, MIDI channel, scale, etc.)                             |
-| 🔊 **DAW Friendly**          | ALSA multi-client, blocksd and your DAW share MIDI without conflict                            |
+| 🔊 **DAW Friendly**          | ALSA multi-client, blocksd and your DAW share MIDI without conflict                             |
 | 🛡️ **systemd Integration**   | Type=notify service, watchdog heartbeat, udev rules for plug-and-play                           |
 
 ## 📦 Install
@@ -52,32 +52,31 @@ ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter 
 ### Quick Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hyperb1iss/blocksd/main/install.sh | bash
+curl -fsSL https://github.com/hyperb1iss/blocksd/releases/latest/download/install.sh -o install-blocksd.sh
+bash install-blocksd.sh
 ```
 
-Installs blocksd, udev rules, and a systemd user service in one shot.
+Installs or upgrades blocksd using uv and managed Python, installs udev rules with sudo, and enables and restarts a systemd user service. Run as your normal user. Use `--version 0.5.0` to select a release or `--no-udev`, `--no-service`, and `--no-enable` to skip setup steps. See the [installation guide](https://hyperb1iss.github.io/blocksd/guide/installation) for prerequisites and upgrade details.
 
 ### From PyPI
 
 ```bash
-uv tool install blocksd
+uv tool install --python 3.13 blocksd
 blocksd install    # sets up systemd service + udev rules
 ```
 
-### Arch Linux (AUR)
+### Arch Linux
 
-```bash
-yay -S blocksd       # stable release
-yay -S blocksd-git   # latest from main
-```
+Packaging recipes live in `packaging/aur/`. AUR publication is separate from a GitHub or PyPI release; check the package's availability before installing through an AUR helper.
 
 ### From Source
 
 ```bash
 git clone https://github.com/hyperb1iss/blocksd.git
 cd blocksd
-uv sync
-uv run blocksd install
+just install
+just web-build
+uv run --locked blocksd install
 ```
 
 The `install` command sets up:
@@ -88,10 +87,13 @@ The `install` command sets up:
 
 ## ⚡ Usage
 
+The current daemon does not upload its LittleFoot LED renderer (firmware opcode compatibility remains unresolved). LED commands and API frames can update heap data, but an accepted write does not establish visible LED output. See the [LittleFoot notes](https://hyperb1iss.github.io/blocksd/architecture/littlefoot).
+
 ### Running the Daemon
 
 ```bash
 # Foreground with verbose logging
+systemctl --user stop blocksd   # if the service is installed
 blocksd run -v
 
 # As a systemd service (after install)
@@ -117,19 +119,23 @@ INFO  ✨ Device connected: lightpad_block_m (LPMJW6SWHSPD8H92), battery 31%
 blocksd status
 
 # Full probe, connects to devices, shows type/serial/battery/version
+systemctl --user stop blocksd   # also stop any foreground daemon
 blocksd status --probe
+systemctl --user start blocksd
 ```
 
 ### LED Control
+
+The LED and config commands open their own MIDI sessions. Stop the service and any foreground daemon before using them. LED commands remain running until Ctrl+C; config commands probe for about eight seconds. Restart the service afterward.
 
 Control the 15×15 LED grid on Lightpad Block and Lightpad Block M:
 
 ```bash
 blocksd led solid '#ff00ff'                          # solid color
-blocksd led rainbow                                   # animated rainbow
+blocksd led rainbow                                   # static rainbow
 blocksd led gradient ff0000 0000ff                    # horizontal gradient
 blocksd led gradient ff0000 0000ff --vertical         # vertical gradient
-blocksd led checkerboard ff0000 00ff00                # 2×2 checkerboard
+blocksd led checkerboard ff0000 00ff00                # 1x1 checkerboard
 blocksd led checkerboard ff0000 00ff00 --size 3       # 3×3 checkerboard
 blocksd led off                                       # lights off
 ```
@@ -146,8 +152,10 @@ blocksd config set 10 50               # write velocity sensitivity
 
 ### Web Dashboard
 
+If blocksd is already running, open `http://localhost:9010` directly. Use `blocksd ui` only when no daemon is running; the command starts its own daemon.
+
 ```bash
-blocksd ui                             # launch web UI on http://localhost:9010
+blocksd ui                             # start a daemon and open its dashboard
 blocksd ui --port 8080                 # custom port
 ```
 
@@ -158,8 +166,8 @@ Opens a real-time dashboard showing connected devices, topology, battery status,
 ```bash
 blocksd install                        # install systemd service + udev rules
 blocksd install --no-udev              # skip udev rules
-blocksd install --no-enable            # install but don't auto-start
-blocksd uninstall                      # remove everything
+blocksd install --no-enable            # write/reload without starting or restarting
+blocksd uninstall                      # remove service and udev rules
 ```
 
 ## 🔌 External API
@@ -187,7 +195,7 @@ The quick rules:
   this usually means the device is not ready yet, the `uid` is gone, or the
   payload was malformed
 - Once a device is live, frame writes are coalesced daemon-side to the latest
-  target state instead of surfacing host-visible “busy” backpressure
+  target state instead of surfacing host-visible "busy" backpressure
 - Prefer a separate subscription socket if you also want events; outbound NDJSON
   events and 1-byte binary frame acks share the same connection
 
@@ -222,12 +230,13 @@ blocksd
 ├── littlefoot/
 │   ├── opcodes.py            LittleFoot VM opcode definitions
 │   ├── assembler.py          bytecode assembler with label support
-│   └── programs.py           BitmapLEDProgram (94-byte repaint)
+│   └── programs.py           BitmapLEDProgram (100-byte repaint)
 ├── topology/
 │   ├── detector.py           MIDI port scanning
 │   ├── device_group.py       connection lifecycle (the big one)
 │   └── manager.py            orchestrates DeviceGroups
 ├── api/
+│   ├── commands.py           shared command validation and dispatch
 │   ├── server.py             Unix socket + WebSocket servers
 │   ├── protocol.py           NDJSON + binary frame wire protocol
 │   ├── events.py             event broadcaster (device/touch/button/config)
@@ -271,11 +280,11 @@ Host                                          Device
 | Lightpad Block / M      | `0x0900`            | `LPB` / `LPM` | ✅ Tested   |
 | LUMI Keys Block         | `0x0E00`            | `LKB`         | ✅ Tested   |
 | Seaboard Block          | `0x0700`            | `SBB`         | 🔲 Untested |
-| Live Block              | —                 | `LIC`         | 🔲 Untested |
-| Loop Block              | —                 | `LOC`         | 🔲 Untested |
-| Developer Control Block | —                 | `DCB`         | 🔲 Untested |
-| Touch Block             | —                 | `TCB`         | 🔲 Untested |
-| Seaboard RISE 25/49     | `0x0200` / `0x0210` | —           | 🔲 Untested |
+| Live Block              | Unknown             | `LIC`         | 🔲 Untested |
+| Loop Block              | Unknown             | `LOC`         | 🔲 Untested |
+| Developer Control Block | Unknown             | `DCB`         | 🔲 Untested |
+| Touch Block             | Unknown             | `TCB`         | 🔲 Untested |
+| Seaboard RISE 25/49     | `0x0200` / `0x0210` | N/A           | 🔲 Untested |
 
 Bitmap LED streaming is currently exposed for Lightpad Block / Lightpad Block M
 only. Other devices are still discoverable and supported by the topology/API
@@ -302,8 +311,9 @@ See [VISION.md](VISION.md) for the full vision, use cases, and ideas beyond musi
 - [x] **Topology Management**: multi-device tracking, DNA connections
 - [x] **API Mode Keepalive**: full state machine with correct ping timing
 - [x] **Remote Heap Manager**: ACK tracking, retransmission, heap state sync
-- [x] **LittleFoot Programs**: bytecode assembler, BitmapLEDProgram upload
-- [x] **CLI LED Commands**: `blocksd led solid #ff00ff`, `blocksd led rainbow`
+- [x] **LittleFoot Assembler**: bytecode generation and BitmapLEDProgram definition
+- [ ] **LittleFoot Upload**: firmware-compatible renderer for visible LED output
+- [x] **CLI LED Commands**: `blocksd led solid '#ff00ff'`, `blocksd led rainbow`
 - [x] **Touch/Button Events**: normalized callbacks with full velocity data
 - [x] **Config Commands**: read/write device settings via CLI
 - [x] **sd_notify Integration**: Type=notify service with watchdog heartbeat

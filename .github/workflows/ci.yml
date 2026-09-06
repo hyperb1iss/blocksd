@@ -31,6 +31,7 @@ jobs:
       - run: uv run --locked ruff check src tests scripts
       - run: uv run --locked ruff format --check src tests scripts
       - run: uv run --locked ty check src tests scripts
+      - run: bash -n install.sh
       - run: uv run --locked pytest
 
   web:

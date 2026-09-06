@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
+import sys
 import textwrap
 from pathlib import Path
 
@@ -33,17 +35,25 @@ _SERVICE_PATH = _SERVICE_DIR / "blocksd.service"
 
 def _find_blocksd_bin() -> str:
     """Find the installed blocksd binary path."""
-    path = shutil.which("blocksd")
-    if path:
-        return path
-    # Fallback: common uv tool install location
-    candidate = Path.home() / ".local" / "bin" / "blocksd"
-    if candidate.exists():
-        return str(candidate)
-    return str(candidate)  # best guess
+    invoked = Path(sys.argv[0]).absolute()
+    candidates = [invoked] if invoked.name == "blocksd" else []
+    if path := shutil.which("blocksd"):
+        candidates.append(Path(path))
+    candidates.append(Path.home() / ".local" / "bin" / "blocksd")
+    for candidate in candidates:
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    raise FileNotFoundError("Cannot locate blocksd executable; add its install directory to PATH")
 
 
 def _generate_service(bin_path: str) -> str:
+    # systemd rejects quotes, backslashes and control characters in executable paths.
+    if any(char in bin_path for char in ('"', "'", "\\")) or any(
+        ord(char) < 32 or ord(char) == 127 for char in bin_path
+    ):
+        raise ValueError("systemd cannot use this executable path; install in a simpler directory")
+    # Specifiers expand in the executable, but environment variables only expand in arguments.
+    escaped = bin_path.replace("%", "%%")
     return textwrap.dedent(f"""\
         [Unit]
         Description=ROLI Blocks Device Manager
@@ -53,7 +63,7 @@ def _generate_service(bin_path: str) -> str:
 
         [Service]
         Type=notify
-        ExecStart={bin_path} run --daemon
+        ExecStart="{escaped}" run --daemon
         Restart=on-failure
         RestartSec=5
         WatchdogSec=30
@@ -75,26 +85,36 @@ def _run(cmd: list[str], *, sudo: bool = False, check: bool = True) -> bool:
     if sudo:
         cmd = ["sudo", *cmd]
     try:
-        subprocess.run(cmd, check=check)  # noqa: S603
-    except (subprocess.CalledProcessError, FileNotFoundError):
+        result = subprocess.run(cmd, check=check)  # noqa: S603
+    except (subprocess.CalledProcessError, OSError) as exc:
+        typer.echo(f"Command failed: {' '.join(cmd)}: {exc}", err=True)
+        if check:
+            raise typer.Exit(1) from exc
         return False
     else:
-        return True
+        return result.returncode == 0
 
 
 @app.command()
 def install(
     no_udev: bool = typer.Option(False, "--no-udev", help="Skip udev rules installation"),
     no_service: bool = typer.Option(False, "--no-service", help="Skip systemd service"),
-    no_enable: bool = typer.Option(False, "--no-enable", help="Don't enable the service"),
+    no_enable: bool = typer.Option(
+        False, "--no-enable", help="Write/reload the service without enabling or restarting"
+    ),
 ) -> None:
     """Install systemd user service and udev rules."""
-    if not no_udev:
-        _install_udev()
-    if not no_service:
-        _install_service(enable=not no_enable)
-    typer.echo()
-    typer.echo("Done! Start with: systemctl --user start blocksd")
+    try:
+        # Resolve before any privileged changes so a missing entrypoint fails early.
+        bin_path = _find_blocksd_bin() if not no_service else None
+        if not no_udev:
+            _install_udev()
+        if bin_path is not None:
+            _install_service(bin_path, enable=not no_enable)
+    except (OSError, ValueError) as exc:
+        typer.echo(f"Installation failed: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo("Installation complete.")
 
 
 @app.command()
@@ -126,28 +146,29 @@ def _install_udev() -> None:
     with tempfile.NamedTemporaryFile(mode="w", suffix=".rules", delete=False) as f:
         f.write(_UDEV_RULES)
         tmp = f.name
-    if _run(["cp", tmp, str(_UDEV_RULES_DEST)], sudo=True):
-        Path(tmp).unlink(missing_ok=True)
+    try:
+        _run(["install", "-m", "0644", tmp, str(_UDEV_RULES_DEST)], sudo=True)
         _run(["udevadm", "control", "--reload-rules"], sudo=True)
         _run(["udevadm", "trigger"], sudo=True)
         typer.echo(f"Installed {_UDEV_RULES_DEST}")
-    else:
+    finally:
         Path(tmp).unlink(missing_ok=True)
-        typer.echo("Failed to install udev rules", err=True)
 
 
-def _install_service(*, enable: bool = True) -> None:
+def _install_service(bin_path: str, *, enable: bool = True) -> None:
     """Install systemd user service."""
-    bin_path = _find_blocksd_bin()
     service_content = _generate_service(bin_path)
 
     _SERVICE_DIR.mkdir(parents=True, exist_ok=True)
     _SERVICE_PATH.write_text(service_content)
     typer.echo(f"Installed {_SERVICE_PATH}")
-    typer.echo(f"  ExecStart={bin_path} run --daemon")
+    typer.echo(f"  Executable: {bin_path}")
 
     _run(["systemctl", "--user", "daemon-reload"])
 
     if enable:
         _run(["systemctl", "--user", "enable", "blocksd"])
-        typer.echo("Service enabled (starts on login)")
+        _run(["systemctl", "--user", "restart", "blocksd"])
+        typer.echo("Service enabled and restarted (starts on login)")
+    else:
+        typer.echo("Service installed; enable/start/restart state unchanged")

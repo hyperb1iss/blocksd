@@ -4,7 +4,7 @@ Each module in blocksd has a clear responsibility and minimal coupling to its ne
 
 ## protocol/
 
-The protocol package is the foundation. It contains pure, stateless functions for encoding and decoding the ROLI Blocks wire format.
+The protocol package is the foundation. It contains pure encoding and decoding functions plus stateful packing buffers and remote heap tracking, with no I/O.
 
 ### `constants.py`
 
@@ -44,11 +44,11 @@ ACK-tracked heap manager. Maintains the daemon-side view of what the device's he
 
 ### `models.py`
 
-Pydantic models for device state: `BlockType` enum, `DeviceInfo`, `TouchEvent`, `ButtonEvent`, and `TopologyConnection`.
+Device state models: the `BlockType` enum and dataclasses including `DeviceInfo`, `TouchEvent`, `ButtonEvent`, and `DeviceConnection`.
 
 ### `connection.py`
 
-The python-rtmidi to asyncio bridge. Wraps MIDI input/output with a callback that marshals incoming SysEx messages to the event loop. Provides async send/receive methods for the rest of the codebase.
+The python-rtmidi to asyncio bridge. Wraps MIDI input/output with a callback that marshals incoming SysEx messages to the event loop. Provides synchronous sends and asynchronous receives for the rest of the codebase.
 
 ### `registry.py`
 
@@ -62,7 +62,7 @@ Known device configuration item IDs and their human-readable descriptions. Used 
 
 ### `detector.py`
 
-MIDI port scanning. Polls the system's MIDI ports looking for names that match ROLI's naming convention. Validates against USB vendor ID via sysfs as a secondary check.
+MIDI port scanning. Polls the system's MIDI ports looking for names that match ROLI's naming convention. Pairs inputs and outputs by normalized name and occurrence; it does not inspect USB IDs.
 
 ### `device_group.py`
 
@@ -73,6 +73,10 @@ The big state machine. Manages the full lifecycle of a USB-connected device grou
 The TopologyManager orchestrates DeviceGroups. It runs the 1.5-second scan loop, creates DeviceGroups for new connections, and destroys them when connections are lost. It's the entry point that `daemon.py` calls.
 
 ## api/
+
+### `commands.py`
+
+Shared JSON and binary command handling for both transports. Each server has its own subscription and brightness state; validation and dispatch use one implementation.
 
 ### `server.py`
 
@@ -88,7 +92,7 @@ EventBroadcaster. Pushes device, touch, and button events to subscribed clients.
 
 ### `websocket.py`
 
-RFC 6455 WebSocket frame codec. Handles handshake, frame encoding/decoding, ping/pong, and close frames. No external WebSocket library dependency.
+RFC 6455 WebSocket frame codec. Handles frame encoding/decoding, ping/pong, and close frames; the HTTP module handles the upgrade handshake. No external WebSocket library dependency.
 
 ### `http.py`
 
@@ -102,7 +106,7 @@ The RGB565 LED grid. Provides a 15x15 pixel buffer with color conversion (RGB888
 
 ### `patterns.py`
 
-Built-in LED pattern generators: solid fill, horizontal/vertical gradient, rainbow, and checkerboard. Each generator returns a complete bitmap frame.
+Built-in LED pattern generators: solid fill, horizontal/vertical gradient, rainbow, and checkerboard. Each generator modifies the supplied grid.
 
 ## littlefoot/
 
@@ -116,7 +120,7 @@ Bytecode assembler with label resolution and FNV1a function name hashing. Conver
 
 ### `programs.py`
 
-Pre-built LittleFoot programs. The primary one is BitmapLEDProgram: a 94-byte repaint routine that reads RGB565 pixel data from the heap and calls `fillPixel` for each pixel. Currently disabled due to firmware opcode incompatibility on v1.1.0.
+Pre-built LittleFoot programs. The primary one is BitmapLEDProgram: a 100-byte repaint routine that reads RGB565 pixel data from the heap and calls `fillPixel` for each pixel. Currently disabled due to firmware opcode incompatibility on v1.1.0.
 
 ## cli/
 
@@ -126,7 +130,7 @@ The main Typer application. Defines top-level commands (`run`, `ui`, `status`) a
 
 ### `led.py`, `config.py`
 
-LED pattern and device configuration CLI commands. These connect to the running daemon via the Unix socket API to execute operations.
+LED pattern and device configuration CLI commands. These create their own TopologyManager and access MIDI directly; they are not socket clients.
 
 ### `install.py`
 
@@ -136,11 +140,11 @@ systemd service and udev rule installation/uninstallation. Generates the service
 
 ### `daemon.py`
 
-The asyncio main loop. Creates the TopologyManager, starts the API server, handles signals (SIGINT, SIGTERM), and manages the sd_notify lifecycle.
+The asyncio main loop. Creates the TopologyManager, starts the API server, handles signals (SIGINT, SIGTERM), and manages the sd_notify lifecycle. Owns and joins the manager, shutdown waiter and watchdog tasks, and unwinds partially initialized servers when startup fails.
 
 ### `config/schema.py` and `config/loader.py`
 
-Pydantic-based configuration schema and TOML file loader. Validates and applies the daemon configuration.
+Pydantic-based configuration schema and TOML file loader. Parses settings into DaemonConfig. API and web settings are applied; timing fields are currently not forwarded to the topology runtime.
 
 ### `sdnotify.py`
 

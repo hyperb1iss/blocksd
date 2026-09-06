@@ -1,6 +1,6 @@
 # External API
 
-blocksd exposes two APIs for building your own integrations: a Unix domain socket for local IPC (fast, zero overhead) and a WebSocket for browser and network clients. Both speak the same protocol, so code written for one works with the other.
+blocksd exposes two APIs for building your own integrations: a Unix domain socket for local IPC and a WebSocket for browser and network clients. Both share command validation and JSON payloads, but use different transport framing.
 
 ## Connection Methods
 
@@ -21,7 +21,7 @@ Browser and network clients. Used by the web dashboard (`blocksd ui`).
 
 ## Protocol Overview
 
-A single connection can mix two message types:
+On the Unix socket, a single connection can mix two message types:
 
 - **NDJSON**: newline-delimited JSON for control messages and events
 - **Binary LED frames**: fixed-size 685-byte packets for LED streaming
@@ -30,6 +30,8 @@ The server distinguishes inbound message types by the first byte:
 
 - `0xBD`: binary LED frame
 - Anything else: read as newline-delimited JSON
+
+WebSocket clients send JSON in text messages and the same 685-byte LED packet in binary messages. Binary acknowledgements arrive as one-byte binary messages; JSON responses and events arrive as text messages. The custom WebSocket codec has not been validated against a full conformance suite.
 
 ## Recommended Client Strategy
 
@@ -63,7 +65,7 @@ Pixel order is row-major: pixel `i` maps to `x = i % 15`, `y = i // 15`. Each pi
 
 ### Binary Ack
 
-Each frame write returns exactly one byte:
+Each parsed binary frame write returns one acknowledgement byte (inside a binary WebSocket message on that transport):
 
 | Value  | Meaning  |
 | ------ | -------- |
@@ -72,9 +74,12 @@ Each frame write returns exactly one byte:
 
 `0x00` means the device was unavailable, the `uid` was unknown, or the payload was invalid. Early rejections during device startup are retryable.
 
+Acceptance confirms a daemon-side heap update, not a hardware acknowledgement or visible display change. LittleFoot renderer upload is currently disabled; see the [firmware limitation](../architecture/littlefoot).
+
 ### Python Example
 
 ```python
+import os
 import socket
 import struct
 
@@ -86,7 +91,7 @@ uid = 42
 frame = struct.pack("<BBQ", MAGIC, TYPE_FRAME, uid) + PIXELS
 
 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-    sock.connect("/tmp/blocksd/blocksd.sock")
+    sock.connect(os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "blocksd/blocksd.sock"))
     sock.sendall(frame)
     accepted = sock.recv(1) == b"\x01"
     print("accepted:", accepted)
@@ -107,7 +112,7 @@ Health check and basic daemon info.
 ```json
 {
   "type": "pong",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "uptime_seconds": 12,
   "device_count": 2,
   "id": "req-1"
@@ -135,7 +140,7 @@ List all connected devices with capabilities and battery status.
       "grid_height": 15,
       "battery_level": 31,
       "battery_charging": false,
-      "firmware_version": ""
+      "firmware_version": null
     }
   ],
   "id": "req-2"
@@ -176,7 +181,7 @@ Set the LED brightness for a device.
 { "type": "brightness_ack", "uid": 42, "ok": true }
 ```
 
-Value is clamped to 0-255. Brightness is sticky daemon-side state, applied to future frame writes before RGB565 conversion.
+Value is clamped to 0-255. Brightness is sticky per-server state, applied to future frame writes before RGB565 conversion. Unix socket and WebSocket servers hold separate brightness settings; changing one does not change the other.
 
 ### `subscribe`
 
@@ -190,9 +195,39 @@ Subscribe to real-time event streams.
 { "type": "subscribed", "events": ["button", "device", "touch"] }
 ```
 
+### `config_get` and `config_set`
+
+Read cached configuration values for a device or request a setting change:
+
+```json
+{ "type": "config_get", "uid": 42 }
+```
+
+```json
+{
+  "type": "config_values",
+  "uid": 42,
+  "values": [{ "item": 10, "value": 50, "min": 0, "max": 100 }]
+}
+```
+
+```json
+{ "type": "config_set", "uid": 42, "item": 10, "value": 50 }
+```
+
+```json
+{ "type": "config_ack", "uid": 42, "item": 10, "ok": true }
+```
+
+The values and ranges above are illustrative; use the device's reported ranges. A successful set response confirms dispatch, not persistence. Subscribe to `config` for subsequent `config_changed` events.
+
+### `topology`
+
+Send `{ "type": "topology" }` to receive `topology_response` with `devices` and `connections` arrays. Each connection contains `device1_uid`, `device2_uid`, `port1`, and `port2`. Subscribe to `topology` for `topology_changed` events with the same arrays.
+
 ## Event Stream
 
-Subscribed events are emitted as NDJSON on the same socket.
+Subscribed events are emitted as NDJSON on the Unix socket or JSON text messages on WebSocket. Supported categories are `device`, `touch`, `button`, `config`, and `topology`. A new subscription replaces the previous one on that connection.
 
 ### Device Events
 
@@ -207,7 +242,7 @@ Subscribed events are emitted as NDJSON on the same socket.
     "grid_height": 15,
     "battery_level": 85,
     "battery_charging": false,
-    "firmware_version": ""
+    "firmware_version": null
   }
 }
 ```
@@ -223,7 +258,7 @@ Subscribed events are emitted as NDJSON on the same socket.
   "type": "touch",
   "uid": 42,
   "action": "start",
-  "touch_index": 0,
+  "index": 0,
   "x": 0.5,
   "y": 0.75,
   "z": 0.8,
@@ -238,10 +273,16 @@ Action is one of: `start`, `move`, `end`.
 ### Button Events
 
 ```json
-{ "type": "button", "uid": 42, "button_id": 0, "action": "press" }
+{ "type": "button", "uid": 42, "action": "press" }
 ```
 
-Action is one of: `press`, `release`.
+Action is one of: `press`, `release`. The current API does not expose the protocol button ID.
+
+### Configuration Events
+
+```json
+{ "type": "config_changed", "uid": 42, "item": 10, "value": 50 }
+```
 
 ### Backpressure
 

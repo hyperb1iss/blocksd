@@ -11,6 +11,7 @@ Plug in a ROLI Block via USB. If you've run `blocksd install`, the udev rules ar
 Start blocksd in the foreground with verbose logging to see what's happening:
 
 ```bash
+systemctl --user stop blocksd   # if the service is installed
 blocksd run -v
 ```
 
@@ -47,19 +48,25 @@ blocksd status
 For full details including serial number, firmware version, and battery level:
 
 ```bash
+systemctl --user stop blocksd   # also stop any foreground daemon
 blocksd status --probe
+systemctl --user start blocksd
 ```
 
 ## Try LED Patterns
+
+The LED and config commands open their own MIDI sessions. Stop the service and any foreground daemon before using them. LED commands remain running until Ctrl+C; config commands probe for about eight seconds. Restart the service afterward.
+
+The current daemon does not upload its LittleFoot LED renderer (firmware opcode compatibility remains unresolved). LED commands and API frames can update heap data, but an accepted write does not establish visible LED output. See the [LittleFoot notes](../architecture/littlefoot).
 
 If you have a Lightpad Block or Lightpad Block M, try the built-in LED patterns:
 
 ```bash
 blocksd led solid '#ff00ff'                      # solid magenta
-blocksd led rainbow                               # animated rainbow
+blocksd led rainbow                               # static rainbow
 blocksd led gradient ff0000 0000ff                # red → blue gradient
 blocksd led gradient ff0000 0000ff --vertical     # vertical gradient
-blocksd led checkerboard ff0000 00ff00            # 2x2 checkerboard
+blocksd led checkerboard ff0000 00ff00            # 1x1 checkerboard
 blocksd led checkerboard ff0000 00ff00 --size 3   # 3x3 checkerboard
 blocksd led off                                   # lights off
 ```
@@ -75,6 +82,8 @@ blocksd config set 10 50         # set velocity sensitivity to 50
 ```
 
 ## Launch the Web Dashboard
+
+If blocksd is already running, open `http://localhost:9010` directly. Use `blocksd ui` only when no daemon is running; the command starts its own daemon.
 
 For a visual overview of your connected devices:
 

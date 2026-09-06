@@ -41,7 +41,7 @@ Acknowledges receipt of a host-to-device packet. Contains a 10-bit packet counte
 
 Touch events report finger position and pressure on the device surface. The `x` and `y` fields are 12-bit fixed-point values representing position on the touch surface. The `z` field is an 8-bit pressure value. Velocity variants add 8-bit velocity components for each axis.
 
-blocksd normalizes these to floating-point values in the 0.0-1.0 range before exposing them through the external API.
+blocksd normalizes position and pressure to 0.0-1.0 before exposing them through the API. Velocity components are signed (approximately -1.0 to 1.0); raw zero denotes no velocity.
 
 ### configMessage (0x18)
 
@@ -114,8 +114,8 @@ Each command starts with a 3-bit command ID:
 
 | ID  | Name                     | Extra Bits                   | Description                             |
 | --- | ------------------------ | ---------------------------- | --------------------------------------- |
-| `0` | endOfPacket              | —                            | End of this packet's changes            |
-| `1` | endOfChanges             | —                            | All changes complete                    |
+| `0` | endOfPacket              | :                            | End of this packet's changes            |
+| `1` | endOfChanges             | :                            | All changes complete                    |
 | `2` | skipBytesFew             | 4b count                     | Skip 1-15 heap bytes                    |
 | `3` | skipBytesMany            | 8b count                     | Skip 1-255 heap bytes                   |
 | `4` | setSequenceOfBytes       | (8b value + 1b continue) x N | Write a sequence of distinct bytes      |
