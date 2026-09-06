@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install or upgrade blocksd and configure Linux device/service integration.
+# Install or upgrade blocksd and configure native device/service integration.
 set -euo pipefail
 
 bootstrap_uv() (
@@ -28,13 +28,14 @@ main() {
 Usage: bash install.sh [--version VERSION] [--no-udev] [--no-service] [--no-enable]
 
 Install or upgrade blocksd using uv and managed Python 3.13.
-By default install udev rules (sudo), enable the user service, and restart it.
+By default enable and restart the user service; Linux also installs udev rules (sudo).
   --version VERSION  Install a specific PyPI version (default: latest)
   --no-udev          Skip device permission rules (no sudo needed)
-  --no-service       Skip all systemd setup
-  --no-enable        Write/reload service without enabling or restarting it
-Run as your normal user. Requires Linux, curl, and a systemd user session
-unless --no-service is used. Re-running upgrades the package and restarts it.
+  --no-service       Skip all background service setup
+  --no-enable        Write service without enabling or restarting (Linux reloads)
+Run as your normal user. Requires Linux or macOS and curl for uv bootstrap.
+Service setup requires a systemd user session on Linux or a GUI login on macOS.
+Re-running upgrades the package and restarts the service.
 HELP
                 return 0
                 ;;
@@ -42,7 +43,10 @@ HELP
         esac
     done
 
-    [[ "$(uname -s)" == Linux ]] || { printf 'blocksd requires Linux\n' >&2; return 1; }
+    case "$(uname -s)" in
+        Linux|Darwin) ;;
+        *) printf 'This installer supports Linux and macOS only\n' >&2; return 1 ;;
+    esac
     [[ "$(id -u)" != 0 ]] || { printf 'Run as your normal user, without sudo\n' >&2; return 1; }
     uv_bin=$(command -v uv || true)
     if [[ -z "$uv_bin" ]]; then
