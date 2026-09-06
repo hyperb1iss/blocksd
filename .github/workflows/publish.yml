@@ -52,12 +52,30 @@ jobs:
           uv lock --check
           uv build --clear
 
+      - name: Prepare release downloads
+        run: |
+          mkdir -p release
+          cp dist/*.whl dist/*.tar.gz install.sh release/
+          cd release
+          sha256sum ./*.whl ./*.tar.gz install.sh > SHA256SUMS
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: blocksd-distributions
+          path: release/
+          if-no-files-found: error
+
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
 
   github-release:
     uses: hyperb1iss/shared-workflows/.github/workflows/github-release.yml@9edda2222785fe0351a26a07bf26a3385874d288 # v1
     needs: [pypi]
+    with:
+      attach-artifacts: true
+      artifact-pattern: blocksd-distributions
+      release-notes-provider: anthropic
+      release-notes-model: claude-opus-5
     permissions:
       contents: write
       actions: read

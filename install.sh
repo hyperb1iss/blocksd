@@ -1,119 +1,68 @@
 #!/usr/bin/env bash
-# blocksd installer,installs via uv/pipx and sets up systemd + udev
+# Install or upgrade blocksd and configure Linux device/service integration.
 set -euo pipefail
 
-ELECTRIC_PURPLE='\033[38;2;225;53;255m'
-NEON_CYAN='\033[38;2;128;255;234m'
-SUCCESS_GREEN='\033[38;2;80;250;123m'
-ERROR_RED='\033[38;2;255;99;99m'
-ELECTRIC_YELLOW='\033[38;2;241;250;140m'
-BOLD='\033[1m'
-RESET='\033[0m'
+bootstrap_uv() (
+    # The subshell owns both the temporary file and its EXIT cleanup.
+    bootstrap=$(mktemp)
+    trap 'rm -f "$bootstrap"' EXIT
+    curl --proto '=https' --tlsv1.2 -fsSL https://astral.sh/uv/install.sh -o "$bootstrap"
+    UV_UNMANAGED_INSTALL="$HOME/.local/bin" sh "$bootstrap"
+)
 
-info()  { printf "${NEON_CYAN}${BOLD}>>>${RESET} %s\n" "$*"; }
-ok()    { printf "${SUCCESS_GREEN}${BOLD} ✓${RESET} %s\n" "$*"; }
-warn()  { printf "${ELECTRIC_YELLOW}${BOLD} !${RESET} %s\n" "$*"; }
-fail()  { printf "${ERROR_RED}${BOLD} ✗${RESET} %s\n" "$*" >&2; exit 1; }
+main() {
+    local requirement='blocksd' uv_bin tool_bin
+    local -a setup_args=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --version)
+                [[ $# -ge 2 && "$2" =~ ^[0-9]+(\.[0-9]+)*([abrc]|post|dev|[0-9.])*([+][a-zA-Z0-9.]+)?$ ]] || {
+                    printf 'Expected a package version after --version\n' >&2; return 2;
+                }
+                requirement="blocksd==$2"
+                shift 2
+                ;;
+            --no-udev|--no-service|--no-enable) setup_args+=("$1"); shift ;;
+            -h|--help)
+                cat <<'HELP'
+Usage: bash install.sh [--version VERSION] [--no-udev] [--no-service] [--no-enable]
 
-printf "\n${ELECTRIC_PURPLE}${BOLD}"
-printf "  ┌──────────────────────────────────┐\n"
-printf "  │         🔌 blocksd               │\n"
-printf "  │   ROLI Blocks Linux Daemon       │\n"
-printf "  └──────────────────────────────────┘\n"
-printf "${RESET}\n"
+Install or upgrade blocksd using uv and managed Python 3.13.
+By default install udev rules (sudo), enable the user service, and restart it.
+  --version VERSION  Install a specific PyPI version (default: latest)
+  --no-udev          Skip device permission rules (no sudo needed)
+  --no-service       Skip all systemd setup
+  --no-enable        Write/reload service without enabling or restarting it
+Run as your normal user. Requires Linux, curl, and a systemd user session
+unless --no-service is used. Re-running upgrades the package and restarts it.
+HELP
+                return 0
+                ;;
+            *) printf 'Unknown option: %s\n' "$1" >&2; return 2 ;;
+        esac
+    done
 
-# ─── Install blocksd ──────────────────────────────────────────────
-info "Installing blocksd..."
+    [[ "$(uname -s)" == Linux ]] || { printf 'blocksd requires Linux\n' >&2; return 1; }
+    [[ "$(id -u)" != 0 ]] || { printf 'Run as your normal user, without sudo\n' >&2; return 1; }
+    uv_bin=$(command -v uv || true)
+    if [[ -z "$uv_bin" ]]; then
+        command -v curl >/dev/null || { printf 'Install curl first\n' >&2; return 1; }
+        printf 'Installing uv...\n'
+        bootstrap_uv
+        uv_bin="$HOME/.local/bin/uv"
+    fi
 
-if command -v uv &>/dev/null; then
-    uv tool install blocksd
-    ok "Installed via uv"
-elif command -v pipx &>/dev/null; then
-    pipx install blocksd
-    ok "Installed via pipx"
-elif command -v pip &>/dev/null; then
-    pip install --user blocksd
-    ok "Installed via pip"
-else
-    fail "No Python package manager found. Install uv: https://docs.astral.sh/uv/"
-fi
+    printf 'Installing %s...\n' "$requirement"
+    "$uv_bin" tool install --python 3.13 --managed-python --upgrade "$requirement"
+    tool_bin=$("$uv_bin" tool dir --bin)
+    [[ -x "$tool_bin/blocksd" ]] || { printf 'uv did not install an executable blocksd\n' >&2; return 1; }
+    "$tool_bin/blocksd" install "${setup_args[@]}"
+    printf 'Installed: %s/blocksd\n' "$tool_bin"
+    case ":$PATH:" in
+        *":$tool_bin:"*) ;;
+        *) printf 'Add %s to PATH to run blocksd from your shell.\n' "$tool_bin" ;;
+    esac
+}
 
-# ─── Verify ───────────────────────────────────────────────────────
-if ! command -v blocksd &>/dev/null; then
-    warn "blocksd not found on PATH,you may need to add ~/.local/bin to your PATH"
-    warn "  export PATH=\"\$HOME/.local/bin:\$PATH\""
-fi
-
-# ─── udev rules ──────────────────────────────────────────────────
-info "Installing udev rules for ROLI devices..."
-
-UDEV_RULE='# ROLI Blocks devices (VID 0x2AF4)
-SUBSYSTEM=="usb", ATTR{idVendor}=="2af4", MODE="0666", TAG+="uaccess"
-SUBSYSTEM=="sound", ATTR{idVendor}=="2af4", MODE="0666", TAG+="uaccess"'
-
-UDEV_PATH="/etc/udev/rules.d/99-roli-blocks.rules"
-
-if [[ -f "$UDEV_PATH" ]]; then
-    warn "udev rules already exist at $UDEV_PATH,skipping"
-else
-    echo "$UDEV_RULE" | sudo tee "$UDEV_PATH" >/dev/null
-    sudo udevadm control --reload-rules
-    sudo udevadm trigger
-    ok "udev rules installed"
-fi
-
-# ─── systemd user service ────────────────────────────────────────
-info "Installing systemd user service..."
-
-SERVICE_DIR="$HOME/.config/systemd/user"
-SERVICE_PATH="$SERVICE_DIR/blocksd.service"
-mkdir -p "$SERVICE_DIR"
-
-BLOCKSD_BIN=$(command -v blocksd 2>/dev/null || echo "$HOME/.local/bin/blocksd")
-
-cat > "$SERVICE_PATH" <<EOF
-[Unit]
-Description=blocksd: ROLI Blocks Linux Daemon
-Documentation=https://github.com/hyperb1iss/blocksd
-After=sound.target
-
-[Service]
-Type=notify
-ExecStart=$BLOCKSD_BIN run --daemon
-Restart=on-failure
-RestartSec=5
-WatchdogSec=30
-
-# Security hardening
-ProtectSystem=strict
-PrivateTmp=true
-NoNewPrivileges=true
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectControlGroups=true
-
-[Install]
-WantedBy=default.target
-EOF
-
-systemctl --user daemon-reload
-ok "systemd service installed"
-
-# ─── Enable? ─────────────────────────────────────────────────────
-printf "\n"
-read -rp "$(printf "${NEON_CYAN}${BOLD}>>>${RESET} Enable and start blocksd now? [Y/n] ")" ENABLE
-ENABLE="${ENABLE:-Y}"
-
-if [[ "$ENABLE" =~ ^[Yy]$ ]]; then
-    systemctl --user enable --now blocksd
-    ok "blocksd is running"
-    printf "\n"
-    info "Check status:  systemctl --user status blocksd"
-    info "View logs:     journalctl --user -u blocksd -f"
-else
-    ok "Service installed but not started"
-    printf "\n"
-    info "Start later:   systemctl --user enable --now blocksd"
-fi
-
-printf "\n${SUCCESS_GREEN}${BOLD} ✓ Installation complete${RESET}\n\n"
+# Parse the whole script before executing commands that might consume stdin.
+main "$@"
