@@ -51,7 +51,7 @@ ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter 
 
 ### macOS
 
-macOS support is available from source until the next release. Build the dashboard, then run in the foreground:
+macOS requires v0.6.0 or newer. To run from source, build the dashboard and start the daemon in the foreground:
 
 ```bash
 git clone https://github.com/hyperb1iss/blocksd.git
@@ -73,7 +73,7 @@ curl -fsSL https://github.com/hyperb1iss/blocksd/releases/latest/download/instal
 bash install-blocksd.sh
 ```
 
-The current release installer targets Linux. It installs or upgrades blocksd using uv and managed Python, installs udev rules with sudo, and enables and restarts a systemd user service. Run as your normal user. Use `--version 0.5.0` to select a release or `--no-udev`, `--no-service`, and `--no-enable` to skip setup steps. See the [installation guide](https://hyperb1iss.github.io/blocksd/guide/installation) for prerequisites and upgrade details.
+Starting with v0.6.0, the installer supports Linux and macOS. It installs or upgrades blocksd using uv and managed Python. Linux setup installs udev rules with sudo and restarts a systemd user service; macOS setup installs a per-user LaunchAgent without sudo. Run as your normal user. Use `--version 0.6.0` to select a release or `--no-udev`, `--no-service`, and `--no-enable` to skip setup steps. See the [installation guide](https://hyperb1iss.github.io/blocksd/guide/installation) for prerequisites and upgrade details.
 
 ### From PyPI
 

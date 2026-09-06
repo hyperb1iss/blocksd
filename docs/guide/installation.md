@@ -4,7 +4,7 @@ blocksd uses ALSA MIDI on Linux and CoreMIDI on macOS, with Python 3.13 or newer
 
 ## macOS
 
-macOS support is available from source until the next release. Follow [From Source](#from-source), or build only the runtime and dashboard:
+macOS requires v0.6.0 or newer. Follow [From Source](#from-source), or build only the runtime and dashboard:
 
 ```bash
 git clone https://github.com/hyperb1iss/blocksd.git
@@ -48,9 +48,9 @@ CoreMIDI scanning, runtime startup, and installer behavior can be checked withou
 
 USB LUMI Keys and a DNA-connected Lightpad Block M have been confirmed entering API mode on macOS. Sleep/wake and DAW coexistence still need hardware acceptance testing. The existing LittleFoot renderer limitation also applies on macOS: accepted LED writes do not prove visible output.
 
-### Homebrew packaging
+### Homebrew Packaging
 
-The next release includes a Homebrew formula for `hyperb1iss/tap`. The formula must be merged into the tap before this install path is available:
+Starting with v0.6.0, releases include a Homebrew formula for `hyperb1iss/tap`. The formula must be merged into the tap before this install path is available:
 
 ```bash
 brew install hyperb1iss/tap/blocksd
@@ -63,7 +63,7 @@ If python-rtmidi builds from source, install Xcode Command Line Tools (`xcode-se
 
 ## Quick Install and Upgrade
 
-The current published release installer targets Linux. Use the source instructions above for macOS until a release includes the new installer.
+The release installer supports Linux and macOS starting with v0.6.0. Earlier installers target Linux only.
 
 Download the release installer, inspect it, and run it as your normal user:
 
@@ -73,12 +73,12 @@ less install-blocksd.sh
 bash install-blocksd.sh
 ```
 
-The installer installs or upgrades the latest PyPI release in an isolated uv tool environment, installs udev rules (using sudo), and enables and restarts the systemd user service. Re-running the same command upgrades an existing installation.
+The installer installs or upgrades the latest PyPI release in an isolated uv tool environment. On Linux it installs udev rules (using sudo) and enables and restarts the systemd user service. On macOS it installs and starts a per-user LaunchAgent without sudo. Re-running the same command upgrades an existing installation.
 
 To select a release or skip parts of setup:
 
 ```bash
-bash install-blocksd.sh --version 0.5.0
+bash install-blocksd.sh --version 0.6.0
 bash install-blocksd.sh --no-udev
 bash install-blocksd.sh --no-service
 bash install-blocksd.sh --no-enable
