@@ -1,6 +1,6 @@
 [project]
 name = "blocksd"
-version = "0.5.0"
+version = "0.6.0"
 description = "ROLI Blocks daemon for Linux and macOS: keepalive, LED control, and topology"
 readme = "README.md"
 license = "ISC"
