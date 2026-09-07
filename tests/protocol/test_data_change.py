@@ -11,6 +11,7 @@ from blocksd.protocol.data_change import (
     build_data_change_packet,
     compute_diff,
     encode_regions,
+    encode_regions_limited,
 )
 from blocksd.protocol.packing import Packed7BitReader, Packed7BitWriter
 
@@ -430,3 +431,20 @@ class TestBuildDataChangePacket:
         # Should contain skip and set commands
         cmd_types = [c[0] for c in cmds]
         assert any(t.startswith(("skip", "set")) for t in cmd_types)
+
+
+@pytest.mark.parametrize("skip_count", [1, 15, 16, 255, 256, 7200])
+def test_limited_encoder_reserves_end_marker_before_skip(skip_count):
+    writer = Packed7BitWriter(8)
+    encoder = DataChangeEncoder(writer)
+    target = b"abcd" + bytes(skip_count) + b"z"
+    result = bytearray(len(target))
+    regions = [
+        DiffRegion(False, 0, 4),
+        DiffRegion(True, 4, skip_count),
+        DiffRegion(False, 4 + skip_count, 1),
+    ]
+    assert not encode_regions_limited(encoder, regions, target, result)
+    encoder.end(is_last=False)
+    assert decode_commands(writer) == [("set_sequence", b"abcd"), ("end_of_packet",)]
+    assert result == b"abcd" + bytes(skip_count + 1)
