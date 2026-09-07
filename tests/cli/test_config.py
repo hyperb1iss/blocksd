@@ -27,7 +27,11 @@ class TestConfigSubcommands:
         result = runner.invoke(app, ["config", "list"])
         assert result.exit_code == 0
         assert "velocity_sensitivity" in result.output
-        assert "midi_channel_mode" in result.output
+        assert "slide_mode" in result.output
+        assert "x_tracking_mode" in result.output
+        assert "global_key_colour" in result.output
+        assert "midi_channel_mode" not in result.output
+        assert "colour_preset" not in result.output
 
     def test_get_missing_item(self):
         result = runner.invoke(app, ["config", "get"])

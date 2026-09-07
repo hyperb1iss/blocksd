@@ -118,6 +118,23 @@ Show all known configuration item IDs and their descriptions.
 blocksd config list
 ```
 
+The list follows the system IDs in the [ROLI BLOCKS SDK](https://github.com/WeAreROLI/roli_blocks_basics/blob/212ba4e237638b9ae8c2a4f76dd2070110392031/blocks/roli_BlockConfigId.h). An ID in this list does not establish that your device or its current program supports it. Use device-reported values and ranges.
+
+Earlier versions mislabeled several IDs. Update scripts that imported the Python enum or selected numeric IDs from the old list:
+
+| Setting                    | Correct ID | Earlier mapping                                             |
+| -------------------------- | ---------- | ----------------------------------------------------------- |
+| Glide sensitivity          | 11         | 12                                                          |
+| Slide sensitivity          | 12         | 11                                                          |
+| MIDI mode (`midi_use_mpe`) | 2          | `midi_channel_mode` labeled ID 7, which is slide mode       |
+| Mode                       | 20         | Labeled `grid_size`                                         |
+| Chord                      | 24         | Labeled `colour_preset`                                     |
+| MPE zone                   | 40         | 30, which is X tracking mode                                |
+| MIDI start channel         | 0          | `mpe_channel_start` labeled ID 31, which is Y tracking mode |
+| MIDI end channel           | 1          | `mpe_channel_end` labeled ID 32, which is Z tracking mode   |
+
+The incorrect enum names were removed. Numeric config requests still send the supplied ID unchanged. Global key color, root key color, and hardware brightness use IDs 34, 35, and 36. The SDK describes hardware brightness on a 0 to 100 scale; the daemon's frame brightness control uses 0 to 255 and is a separate setting.
+
 ### `blocksd config get <id>`
 
 Read a configuration value from the device.
