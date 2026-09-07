@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 from blocksd import __version__
 from blocksd.api.events import VALID_EVENTS, EventBroadcaster, _connection_to_dict, _device_to_dict
 from blocksd.api.protocol import PIXEL_DATA_SIZE, decode_json, parse_binary_frame
+from blocksd.device.registry import key_count_for_block, supports_key_led_program
 from blocksd.led.bitmap import Color, LEDGrid
 
 if TYPE_CHECKING:
@@ -85,6 +86,9 @@ class ApiCommands:
         if msg_type == "frame":
             return self._handle_json_frame(msg), None
 
+        if msg_type == "key_frame":
+            return self._handle_json_frame(msg, key_frame=True), None
+
         if msg_type == "brightness":
             return self._handle_brightness(msg), None
 
@@ -128,19 +132,21 @@ class ApiCommands:
             resp["id"] = msg_id
         return resp
 
-    def _handle_json_frame(self, msg: dict[str, Any]) -> dict[str, Any]:
+    def _handle_json_frame(self, msg: dict[str, Any], *, key_frame: bool = False) -> dict[str, Any]:
         uid = msg.get("uid")
         pixels_b64 = msg.get("pixels", "")
+        ack_type = "key_frame_ack" if key_frame else "frame_ack"
         if type(uid) is not int:
-            return {"type": "frame_ack", "uid": uid if uid is not None else 0, "accepted": False}
+            return {"type": ack_type, "uid": uid if uid is not None else 0, "accepted": False}
 
         try:
             pixels = base64.b64decode(pixels_b64, validate=True)
         except (binascii.Error, TypeError, ValueError):
-            return {"type": "frame_ack", "uid": uid, "accepted": False}
+            return {"type": ack_type, "uid": uid, "accepted": False}
 
-        accepted = self._write_rgb888_frame(uid, pixels)
-        return {"type": "frame_ack", "uid": uid, "accepted": accepted}
+        writer = self._write_rgb888_key_frame if key_frame else self._write_rgb888_frame
+        accepted = writer(uid, pixels)
+        return {"type": ack_type, "uid": uid, "accepted": accepted}
 
     def _handle_brightness(self, msg: dict[str, Any]) -> dict[str, Any]:
         uid = msg.get("uid")
@@ -169,10 +175,26 @@ class ApiCommands:
         if device is None:
             return False
 
-        brightness = self._brightness_map.get(uid, 255)
-        grid = LEDGrid()
+        grid = self._rgb888_grid(uid, pixels, cols=15, rows=15)
+        return self._manager.set_led_data(uid, grid.heap_data)
 
-        for i in range(225):
+    def _write_rgb888_key_frame(self, uid: int, pixels: bytes) -> bool:
+        """Write one RGB888 color per physical key on a supported keyboard."""
+        device = self._manager.find_device(uid)
+        if device is None or not supports_key_led_program(device.block_type):
+            return False
+
+        key_count = key_count_for_block(device.block_type)
+        if len(pixels) != key_count * 3:
+            return False
+
+        grid = self._rgb888_grid(uid, pixels, cols=key_count, rows=1)
+        return self._manager.set_key_led_data(uid, grid.heap_data)
+
+    def _rgb888_grid(self, uid: int, pixels: bytes, *, cols: int, rows: int) -> LEDGrid:
+        brightness = self._brightness_map.get(uid, 255)
+        grid = LEDGrid(cols=cols, rows=rows)
+        for i in range(cols * rows):
             offset = i * 3
             r, g, b = pixels[offset], pixels[offset + 1], pixels[offset + 2]
 
@@ -182,11 +204,10 @@ class ApiCommands:
                 g = (g * brightness) // 255
                 b = (b * brightness) // 255
 
-            x = i % 15
-            y = i // 15
+            x = i % cols
+            y = i // cols
             grid.set_pixel(x, y, Color(r, g, b))
-
-        return self._manager.set_led_data(uid, grid.heap_data)
+        return grid
 
     def _handle_config_get(self, msg: dict[str, Any]) -> dict[str, Any]:
         uid = msg.get("uid")

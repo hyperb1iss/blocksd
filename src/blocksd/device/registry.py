@@ -65,3 +65,12 @@ def bitmap_grid_dimensions(block_type: BlockType) -> tuple[int, int]:
 def supports_bitmap_led_program(block_type: BlockType) -> bool:
     """Whether the device exposes an upstream LEDGrid-style bitmap surface."""
     return bitmap_grid_dimensions(block_type) != (0, 0)
+
+
+def key_count_for_block(block_type: BlockType) -> int:
+    """Return the number of independently illuminated LUMI keys."""
+    return 24 if block_type == BlockType.LUMI_KEYS else 0
+
+
+def supports_key_led_program(block_type: BlockType) -> bool:
+    return key_count_for_block(block_type) > 0

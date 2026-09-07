@@ -13,6 +13,7 @@ from blocksd.protocol.constants import (
     SERIAL_DUMP_RESPONSE_HEADER,
     BitSize,
     MessageFromDevice,
+    MessageFromHost,
 )
 from blocksd.protocol.packing import Packed7BitReader, Packed7BitWriter
 from blocksd.topology.device_group import (
@@ -291,6 +292,13 @@ class TestACKHandling:
         conn.sent.clear()
         uid = next(iter(group._devices))
         assert group.set_led_data(uid, grid.heap_data)
+        # Program upload completes before the first pixel frame is released.
+        group._process_message(_build_ack_packet(0, counter=_decode_packet_index(conn.sent[-1])))
+        reader = Packed7BitReader(conn.sent[-1][6:-2])
+        assert reader.read_bits(7) == MessageFromHost.PROGRAM_EVENT
+        query = (reader.read_bits(32), reader.read_bits(32), reader.read_bits(32))
+        conn.sent.clear()
+        group.on_program_event(0, 0, query)
         first_burst = list(conn.sent)
         assert len(first_burst) > 1
         heap = group.get_heap(uid)

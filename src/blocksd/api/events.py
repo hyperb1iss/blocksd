@@ -6,7 +6,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from blocksd.device.registry import bitmap_grid_dimensions
+from blocksd.device.registry import bitmap_grid_dimensions, key_count_for_block
 
 if TYPE_CHECKING:
     from blocksd.device.models import (
@@ -151,6 +151,7 @@ def _device_to_dict(dev: DeviceInfo) -> dict[str, Any]:
         "battery_charging": dev.battery_charging,
         "grid_width": grid_width,
         "grid_height": grid_height,
+        "key_count": key_count_for_block(dev.block_type),
         "firmware_version": dev.version or None,
     }
 

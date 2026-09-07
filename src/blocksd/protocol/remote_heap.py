@@ -64,6 +64,7 @@ class RemoteHeap:
 
     def __init__(self, size: int) -> None:
         self._size = size
+        self._generation = 0
         self._device_state: list[int] = [_UNKNOWN] * size
         self._target = bytearray(size)
         self._messages: deque[_InFlightMessage] = deque()
@@ -74,6 +75,11 @@ class RemoteHeap:
     @property
     def size(self) -> int:
         return self._size
+
+    @property
+    def generation(self) -> int:
+        """Monotonic epoch of the confirmed device state."""
+        return self._generation
 
     @property
     def is_dirty(self) -> bool:
@@ -104,6 +110,7 @@ class RemoteHeap:
 
     def reset(self) -> None:
         """Reset all state — device becomes unknown, target zeroed."""
+        self._generation += 1
         self._device_state = [_UNKNOWN] * self._size
         self._target = bytearray(self._size)
         self._messages.clear()
@@ -116,6 +123,7 @@ class RemoteHeap:
 
         Clears in-flight messages since they'll never be ACK'd.
         """
+        self._generation += 1
         self._device_state = [_UNKNOWN] * self._size
         self._messages.clear()
         self._packet_index = (

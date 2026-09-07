@@ -11,6 +11,7 @@ from __future__ import annotations
 from functools import lru_cache
 
 from blocksd.littlefoot.assembler import BytecodeAssembler, compute_function_id
+from blocksd.littlefoot.lifecycle import BITMAP_RENDERER, emit_renderer_query_handler
 
 # Native function IDs (computed from signatures)
 _MAKE_ARGB = compute_function_id("makeARGB/iiiii")
@@ -48,6 +49,11 @@ def bitmap_led_program() -> bytes:
     - Built-in opcodes (getHeapBits): TOS = first arg, *stack++ = second arg
     """
     asm = BytecodeAssembler(heap_size=_HEAP_SIZE)
+    asm.begin_function("initialise/v")
+    asm.push0()
+    asm.call_native(compute_function_id("setStatusOverlayActive/vb"))
+    asm.ret_void()
+
     asm.begin_function("repaint/v")
 
     # --- Outer loop: for (y = 0; y < 15; y++) ---
@@ -145,6 +151,7 @@ def bitmap_led_program() -> bytes:
     asm.drop()  # discard y                        stack: []
     asm.ret_void(0)
 
+    emit_renderer_query_handler(asm, BITMAP_RENDERER)
     return asm.build()
 
 

@@ -41,3 +41,18 @@ class TestHostPacketBuilder:
         end = build_end_api_mode(0)
         assert ping != begin
         assert begin != end
+
+
+class TestProgramEvents:
+    def test_challenge_matches_upstream_cpp_packing(self) -> None:
+        from blocksd.protocol.builder import build_program_event
+
+        # Golden vector produced by the upstream Packed7BitArrayBuilder.
+        expected = bytes.fromhex("f0002110771603440a311224000000007e7f7f7f0f45f7")
+        assert build_program_event(22, (0x424C4544, 2, 0x7FFFFFFF)) == expected
+
+    def test_signed_arguments_match_upstream_cpp_packing(self) -> None:
+        from blocksd.protocol.builder import build_program_event
+
+        expected = bytes.fromhex("f00021107716037f7f7f7f0f00000000000000001025f7")
+        assert build_program_event(22, (-1, 0, -2147483648)) == expected

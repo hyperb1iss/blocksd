@@ -122,3 +122,13 @@ def build_config_request_user_sync(device_index: int) -> bytes:
     builder.write_sysex_header(device_index)
     builder.config_request_user_sync()
     return builder.build()
+
+
+def build_program_event(device_index: int, data: tuple[int, int, int]) -> bytes:
+    """Send three signed 32-bit arguments to the program's handleMessage callback."""
+    builder = HostPacketBuilder()
+    builder.write_sysex_header(device_index)
+    builder.writer.write_bits(MessageFromHost.PROGRAM_EVENT, BitSize.MESSAGE_TYPE)
+    for value in data:
+        builder.writer.write_bits(value & 0xFFFFFFFF, 32)
+    return builder.build()

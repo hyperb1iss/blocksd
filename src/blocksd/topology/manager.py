@@ -82,6 +82,10 @@ class TopologyManager:
                     return dev
         return None
 
+    def set_key_led_data(self, uid: int, pixel_data: bytes | bytearray) -> bool:
+        """Route an RGB565 key frame to its connected LUMI."""
+        return any(entry.group.set_key_led_data(uid, pixel_data) for entry in self._groups.values())
+
     def get_config(self, uid: int) -> dict[int, ConfigValue]:
         """Get all known config values for a device."""
         for entry in self._groups.values():

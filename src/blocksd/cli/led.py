@@ -11,6 +11,11 @@ from typing import TYPE_CHECKING
 import typer
 
 from blocksd.cli.app import app
+from blocksd.device.registry import (
+    bitmap_grid_dimensions,
+    key_count_for_block,
+    supports_key_led_program,
+)
 from blocksd.led.bitmap import Color, LEDGrid
 
 if TYPE_CHECKING:
@@ -30,6 +35,8 @@ log = logging.getLogger(__name__)
 def _run_with_pattern(
     pattern_fn: Callable[[LEDGrid], None],
     verbose: bool = False,
+    *,
+    key_lighting: bool = False,
 ) -> None:
     """Start a mini-daemon, apply a pattern to each device as it connects."""
     from blocksd.logging import setup_logging
@@ -38,14 +45,45 @@ def _run_with_pattern(
     setup_logging(verbose=verbose)
 
     manager = TopologyManager()
+    pending_keys: dict[int, DeviceInfo] = {}
 
     def on_device(dev: DeviceInfo) -> None:
-        grid = LEDGrid()
+        if key_lighting:
+            if not supports_key_led_program(dev.block_type):
+                return
+            if not dev.version:
+                pending_keys[dev.uid] = dev
+                return
+            pending_keys.pop(dev.uid, None)
+            cols, rows = key_count_for_block(dev.block_type), 1
+            write_frame = manager.set_key_led_data
+        else:
+            cols, rows = bitmap_grid_dimensions(dev.block_type)
+            if not cols or not rows:
+                return
+            write_frame = manager.set_led_data
+        grid = LEDGrid(cols=cols, rows=rows)
         pattern_fn(grid)
-        if manager.set_led_data(dev.uid, grid.heap_data):
+        if write_frame(dev.uid, grid.heap_data):
             log.info("Applied LED pattern to %s (%s)", dev.block_type, dev.serial)
+        elif key_lighting:
+            log.warning("Key lighting rejected for %s (firmware %s)", dev.serial, dev.version)
 
     manager.on_device_added.append(on_device)
+
+    def on_removed(dev: DeviceInfo) -> None:
+        pending_keys.pop(dev.uid, None)
+
+    if key_lighting:
+        manager.on_device_removed.append(on_removed)
+
+    async def deliver_pending_keys() -> None:
+        # Firmware arrives separately from discovery without a readiness event.
+        while True:
+            for dev in list(pending_keys.values()):
+                if dev.version:
+                    on_device(dev)
+            await asyncio.sleep(0.05)
 
     async def run() -> None:
         loop = asyncio.get_running_loop()
@@ -54,16 +92,46 @@ def _run_with_pattern(
             loop.add_signal_handler(sig, stop.set)
 
         task = asyncio.create_task(manager.run(), name="led-manager")
+        pending_task = (
+            asyncio.create_task(deliver_pending_keys(), name="led-key-readiness")
+            if key_lighting
+            else None
+        )
         typer.echo("Scanning for ROLI devices... (Ctrl+C to stop)")
-        await stop.wait()
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
+        try:
+            await stop.wait()
+        finally:
+            task.cancel()
+            if pending_task is not None:
+                pending_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+            if pending_task is not None:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await pending_task
 
     asyncio.run(run())
 
 
 # ── Commands ─────────────────────────────────────────────────────────────────
+
+
+@led_app.command()
+def keys(
+    color: str = typer.Argument("rainbow", help="Hex color or 'rainbow' for all 24 LUMI keys"),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    """Light LUMI keys with a color or rainbow. Stop the daemon before running.
+
+    Keep this command running to maintain the lights; press Ctrl+C to stop.
+    """
+    from blocksd.led.patterns import rainbow as rainbow_pattern
+
+    if color.lower() == "rainbow":
+        _run_with_pattern(rainbow_pattern, verbose=verbose, key_lighting=True)
+    else:
+        parsed = _parse_color(color)
+        _run_with_pattern(lambda grid: grid.fill(parsed), verbose=verbose, key_lighting=True)
 
 
 @led_app.command()

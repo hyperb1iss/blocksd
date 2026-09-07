@@ -188,9 +188,7 @@ class BytecodeAssembler:
         self._emit_byte(Op.DUP)
 
     def dup_offset(self, offset: int) -> None:
-        # Always use the general form with explicit int8 operand.
-        # Firmware v1.1.0 doesn't have the fast-path dupOffset_01-07
-        # opcodes — position 0x12 is the general dupOffset(int8).
+        # Encode stack indices explicitly with the general duplication form.
         if offset <= 0xFF:
             self._emit_byte(Op.DUP_OFFSET)
             self._emit_byte(offset & 0xFF)
