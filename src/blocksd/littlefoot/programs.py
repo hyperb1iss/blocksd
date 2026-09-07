@@ -1,9 +1,8 @@
 """Pre-assembled LittleFoot programs for ROLI Blocks devices.
 
 BitmapLEDProgram: reads RGB565 pixel data from the device heap and
-paints the 15x15 LED grid. This is the program that enables host-side
-LED control — the host writes pixel data to the heap via SharedDataChange,
-and this program renders it on every repaint cycle (~25 Hz).
+paints the 15x15 LED grid. Host uploads target the inactive pixel bank.
+Presentation messages select a complete bank, acknowledged after repaint.
 """
 
 from __future__ import annotations
@@ -11,7 +10,13 @@ from __future__ import annotations
 from functools import lru_cache
 
 from blocksd.littlefoot.assembler import BytecodeAssembler, compute_function_id
-from blocksd.littlefoot.lifecycle import BITMAP_RENDERER, emit_renderer_query_handler
+from blocksd.littlefoot.bitmap_lifecycle import (
+    BITMAP_FRAME_BYTES,
+    BITMAP_GLOBALS,
+    emit_bitmap_message_handler,
+    emit_bitmap_repaint_begin,
+    emit_bitmap_repaint_end,
+)
 
 # Native function IDs (computed from signatures)
 _MAKE_ARGB = compute_function_id("makeARGB/iiiii")
@@ -21,20 +26,21 @@ _FILL_PIXEL = compute_function_id("fillPixel/viii")
 _COLS = 15
 _ROWS = 15
 _BITS_PER_PIXEL = 16
-_HEAP_SIZE = _COLS * _ROWS * 2  # 450 bytes (RGB565)
+_HEAP_SIZE = BITMAP_FRAME_BYTES * 2  # Two RGB565 banks.
 
 
 @lru_cache(maxsize=1)
 def bitmap_led_program() -> bytes:
     """Assemble the BitmapLEDProgram bytecode.
 
-    Equivalent LittleFoot source:
-        #heapsize: 450
+    Equivalent LittleFoot pixel loop (the message lifecycle selects activeBank):
+        #heapsize: 900
+        int activeBank;
 
         void repaint() {
             for (int y = 0; y < 15; ++y)
                 for (int x = 0; x < 15; ++x) {
-                    int bit = (x + y * 15) * 16;
+                    int bit = (activeBank * 225 + x + y * 15) * 16;
                     fillPixel(makeARGB(255,
                         getHeapBits(bit, 5) << 3,
                         getHeapBits(bit + 5, 6) << 2,
@@ -48,14 +54,16 @@ def bitmap_led_program() -> bytes:
     - callNative: stack[0] = first arg after flush
     - Built-in opcodes (getHeapBits): TOS = first arg, *stack++ = second arg
     """
-    asm = BytecodeAssembler(heap_size=_HEAP_SIZE)
+    asm = BytecodeAssembler(heap_size=_HEAP_SIZE, num_globals=BITMAP_GLOBALS)
     asm.begin_function("initialise/v")
     asm.push0()
     asm.call_native(compute_function_id("setStatusOverlayActive/vb"))
     asm.ret_void()
 
     asm.begin_function("repaint/v")
+    emit_bitmap_repaint_begin(asm)
 
+    # Stack comments below omit the latched frame context and bank bit base.
     # --- Outer loop: for (y = 0; y < 15; y++) ---
     asm.push0()  # y = 0                          stack: [y]
 
@@ -84,6 +92,8 @@ def bitmap_led_program() -> bytes:
     asm.add_int32()  # x + y*15                    stack: [y, x, x+y*15]
     asm.push8(_BITS_PER_PIXEL)  #                  stack: [y, x, x+y*15, 16]
     asm.mul_int32()  # bit                         stack: [y, x, bit]
+    asm.dup_offset(3)  # Latched bank bit base below y and x.
+    asm.add_int32()
 
     # --- fillPixel(makeARGB(255, r, g, b), x, y) ---
     # Push args RTL: y (3rd), x (2nd), then makeARGB result (1st)
@@ -149,9 +159,10 @@ def bitmap_led_program() -> bytes:
 
     asm.label("y_end")
     asm.drop()  # discard y                        stack: []
+    emit_bitmap_repaint_end(asm)
     asm.ret_void(0)
 
-    emit_renderer_query_handler(asm, BITMAP_RENDERER)
+    emit_bitmap_message_handler(asm)
     return asm.build()
 
 

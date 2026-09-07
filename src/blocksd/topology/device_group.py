@@ -28,6 +28,7 @@ from blocksd.device.registry import (
     supports_bitmap_led_program,
     supports_key_led_program,
 )
+from blocksd.led.buffered_program import BufferedLEDProgram
 from blocksd.led.program import LEDProgram
 from blocksd.littlefoot.keys import KEY_HEAP_SIZE, key_led_program
 from blocksd.littlefoot.lifecycle import BITMAP_RENDERER, KEY_RENDERER
@@ -320,7 +321,9 @@ class DeviceGroup:
         if len(pixel_data) != 450:
             return False
         if uid not in self._led_programs:
-            self._led_programs[uid] = LEDProgram(heap, bitmap_led_program(), BITMAP_RENDERER, 450)
+            self._led_programs[uid] = BufferedLEDProgram(
+                heap, bitmap_led_program(), BITMAP_RENDERER, 450
+            )
         self._led_programs[uid].set_frame(pixel_data)
         self._flush_heap(uid, heap, time.monotonic())
         return True

@@ -293,9 +293,15 @@ class TestACKHandling:
         uid = next(iter(group._devices))
         assert group.set_led_data(uid, grid.heap_data)
         # Program upload completes before the first pixel frame is released.
-        group._process_message(_build_ack_packet(0, counter=_decode_packet_index(conn.sent[-1])))
-        reader = Packed7BitReader(conn.sent[-1][6:-2])
-        assert reader.read_bits(7) == MessageFromHost.PROGRAM_EVENT
+        for _ in range(20):
+            reader = Packed7BitReader(conn.sent[-1][6:-2])
+            if reader.read_bits(7) == MessageFromHost.PROGRAM_EVENT:
+                break
+            group._process_message(
+                _build_ack_packet(0, counter=_decode_packet_index(conn.sent[-1]))
+            )
+        else:
+            raise AssertionError("program upload never reached its readiness challenge")
         query = (reader.read_bits(32), reader.read_bits(32), reader.read_bits(32))
         conn.sent.clear()
         group.on_program_event(0, 0, query)
