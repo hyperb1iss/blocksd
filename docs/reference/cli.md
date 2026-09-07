@@ -59,7 +59,7 @@ The quick scan lists MIDI ports matching ROLI's naming convention. The `--probe`
 
 ## `blocksd led`
 
-Control the 15x15 LED grid on Lightpad Block and Lightpad Block M. These commands start their own MIDI discovery and keepalive session, apply the pattern as devices connect, and remain running until Ctrl+C. Stop any existing daemon first. Program upload is disabled, so heap writes do not guarantee visible LED output (see [LittleFoot](../architecture/littlefoot)).
+Control Lightpad grids and LUMI key colors. These commands start their own MIDI discovery and keepalive session, apply the pattern as devices connect, and remain running until Ctrl+C. Stop any existing daemon first and restart it afterward. The first frame loads a LittleFoot renderer; pixel delivery waits for upload acknowledgement and a matching execution challenge reply (see [LittleFoot](../architecture/littlefoot)).
 
 ### `blocksd led solid`
 
@@ -100,10 +100,21 @@ blocksd led checkerboard ff0000 00ff00 --size 5    # 5x5 squares
 
 ### `blocksd led off`
 
-Turn off all LEDs (fill with black).
+Turn off the Lightpad grid (fill with black).
 
 ```bash
 blocksd led off
+```
+
+### `blocksd led keys`
+
+Set all 24 LUMI key colors to a rainbow or a single hex color. Requires LUMI firmware 1.3.0 or newer; visible rendering has been verified on 1.3.9. The renderer retains the default musical key handler. Live MIDI/MPE preservation during lighting still needs a dedicated acceptance check.
+
+```bash
+blocksd led keys
+blocksd led keys rainbow
+blocksd led keys '#ff00ff'
+blocksd led keys 000000              # key lights off
 ```
 
 ## `blocksd config`

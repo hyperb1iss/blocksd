@@ -84,7 +84,7 @@ graph TD
     DEV -->|ACK| NEXT[Next diff from<br/>current target]
 ```
 
-When the client sends frames faster than the device can accept them, the heap manager doesn't queue them up. It always diffs against the latest target state, which means intermediate frames are automatically skipped. The target heap converges as packets are acknowledged. Visible rendering also requires a compatible LittleFoot program, which the current daemon does not upload.
+The heap manager coalesces frames into the latest target state. Intermediate frames can be skipped while packets are awaiting acknowledgement. During startup, the latest frame stays queued until the complete code transfer is acknowledged and the LittleFoot renderer answers a fresh execution challenge. Subsequent frames update the pixel heap for device-side repaint.
 
 ## Keepalive Flow
 

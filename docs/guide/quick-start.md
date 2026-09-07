@@ -57,7 +57,7 @@ systemctl --user start blocksd
 
 The LED and config commands open their own MIDI sessions. Stop the service and any foreground daemon before using them. LED commands remain running until Ctrl+C; config commands probe for about eight seconds. Restart the service afterward.
 
-The current daemon does not upload its LittleFoot LED renderer (firmware opcode compatibility remains unresolved). LED commands and API frames can update heap data, but an accepted write does not establish visible LED output. See the [LittleFoot notes](../architecture/littlefoot).
+The first LED frame loads a LittleFoot renderer. Pixels follow complete upload acknowledgement and a matching reply to a fresh execution challenge. Visible RGB patterns have been verified on Lightpad M 1.1.0 and LUMI 1.3.9. API acceptance confirms daemon acceptance, not a visible display change. See the [LittleFoot notes](../architecture/littlefoot).
 
 If you have a Lightpad Block or Lightpad Block M, try the built-in LED patterns:
 

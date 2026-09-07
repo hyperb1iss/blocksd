@@ -271,7 +271,7 @@ Protocol, device, topology, daemon, API, CLI, and dashboard layers are implement
 
 CLI commands live in `cli/app.py`, `cli/led.py`, `cli/config.py`, and `cli/install.py`. LED/config commands open independent MIDI sessions; they are not socket clients. Stop the service before running them.
 
-LittleFoot program upload is disabled, including the unreachable unrolled fill fallback. Accepted LED frames confirm heap writes, not visible rendering. Config timing fields are not forwarded to the runtime.
+LED programs load on the first frame. Wait for complete program ACK, then a matching nonce reply from handleMessage before publishing pixels (firmware initialisation can clear preloaded pixel data). Both renderers disable the status overlay; the LUMI renderer retains default musical handling with setUseDefaultKeyHandler(true, false). Visible RGB patterns were confirmed on Lightpad M 1.1.0 and LUMI 1.3.9; live MIDI/MPE preservation and sustained timing remain unverified. Accepted API frames confirm daemon acceptance, not visible rendering. Config timing fields are not forwarded to the runtime.
 
 Use `just install` for locked Python, dashboard, and documentation dependencies. Run `just check` for Python lint/types/tests, dashboard checks, documentation build, and installed-wheel verification. Dashboard and docs use pnpm. See CONTRIBUTING.md for individual commands and release requirements.
 

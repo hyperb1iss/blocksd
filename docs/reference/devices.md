@@ -1,6 +1,6 @@
 # Supported Devices
 
-ROLI shipped a surprisingly diverse family of Blocks devices: pressure-sensitive pads, keyboard strips, control surfaces, loop controllers, and more. blocksd identifies known Blocks serial prefixes and manages discovered devices through the topology and keepalive protocol. Compatibility must be checked per device and firmware. LED bitmap streaming is currently limited to the Lightpad family, which is the only device type with an addressable RGB grid.
+ROLI shipped a surprisingly diverse family of Blocks devices: pressure-sensitive pads, keyboard strips, control surfaces, loop controllers, and more. blocksd identifies known Blocks serial prefixes and manages discovered devices through the topology and keepalive protocol. Compatibility must be checked per device and firmware. Lightpad devices expose a bitmap grid; LUMI Keys uses a separate per-key lighting surface.
 
 ## Device Matrix
 
@@ -21,21 +21,20 @@ ROLI shipped a surprisingly diverse family of Blocks devices: pressure-sensitive
 
 ## What "Tested" Means
 
-**Tested** records prior project hardware reports, not a release-by-release certification. A passing software test suite does not establish physical device compatibility or visible LED rendering.
+**Tested** records prior project hardware reports, not a release-by-release certification. Visible RGB patterns were confirmed on Lightpad Block M firmware 1.1.0 and LUMI Keys firmware 1.3.9 on September 7, 2026. The original Lightpad has no new rendering validation from that session. Live MIDI/MPE preservation during LUMI lighting, sustained frame timing, and physical color calibration remain unverified.
 
 **Untested** means no hardware validation is recorded here. A USB PID or serial prefix in the source does not guarantee discovery or support. Non-Blocks products in the table are identification references only; the MIDI scanner requires a matching Blocks port name.
 
 ## LED Capabilities
 
-The daemon currently skips LittleFoot program upload. An accepted frame is a heap write, not proof of visible rendering (see [LittleFoot status](../architecture/littlefoot)).
+The first frame loads the appropriate LittleFoot renderer. Pixel delivery waits for complete upload acknowledgement and a matching renderer challenge reply. Accepted API frames confirm daemon acceptance, not visible output (see [LittleFoot status](../architecture/littlefoot)).
 
-Only Lightpad Block and Lightpad Block M expose a 15x15 RGB LED grid through the bitmap frame protocol. These are the only devices that:
+| Device                | Discovery capability                                   | Frame API                     | CLI                                                       |
+| --------------------- | ------------------------------------------------------ | ----------------------------- | --------------------------------------------------------- |
+| Lightpad / Lightpad M | `grid_width = 15`, `grid_height = 15`, `key_count = 0` | Binary bitmap or JSON `frame` | `led solid`, `rainbow`, `gradient`, `checkerboard`, `off` |
+| LUMI Keys             | `grid_width = 0`, `grid_height = 0`, `key_count = 24`  | JSON `key_frame`              | `led keys`                                                |
 
-- Advertise `grid_width = 15` and `grid_height = 15` in discovery
-- Accept binary LED frame writes
-- Respond to `blocksd led` CLI commands
-
-Other recognized Blocks devices can participate in discovery and keepalive, but they advertise `grid_width = 0` / `grid_height = 0` and reject frame writes.
+Key lighting requires LUMI firmware 1.3.0 or newer. Other recognized Blocks can participate in discovery and keepalive, but do not expose a supported lighting surface.
 
 ## Touch and Button Events
 
@@ -61,7 +60,7 @@ Devices have limited memory for LittleFoot programs:
 | Pad Block (Lightpad) | 7200 bytes     | 800 bytes |
 | Control Block        | 3000 bytes     | 800 bytes |
 
-The BitmapLEDProgram (LED repaint routine) is 100 bytes, leaving the rest of the heap available for pixel data.
+The Lightpad renderer occupies 145 bytes plus a 450-byte pixel heap. The LUMI renderer occupies 130 bytes plus a 48-byte pixel heap.
 
 ## USB Identification
 

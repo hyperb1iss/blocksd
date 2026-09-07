@@ -112,15 +112,15 @@ Built-in LED pattern generators: solid fill, horizontal/vertical gradient, rainb
 
 ### `opcodes.py`
 
-LittleFoot VM opcode definitions, register layout, and native function IDs. Based on the ROLI JUCE SDK source, with annotations for known firmware incompatibilities.
+LittleFoot VM opcode values and operand widths from the ROLI SDK. Renderer execution has been checked against the upstream VM; older illegal-instruction reports were reproduced as incorrect host-side jump addresses.
 
 ### `assembler.py`
 
-Bytecode assembler with label resolution and FNV1a function name hashing. Converts assembly-like instructions into valid LittleFoot program binaries including the program header, function table, and checksum.
+Bytecode assembler with program-relative label resolution and the SDK native signature hash. Converts assembly instructions into LittleFoot program binaries with a header, function table, and checksum.
 
 ### `programs.py`
 
-Pre-built LittleFoot programs. The primary one is BitmapLEDProgram: a 100-byte repaint routine that reads RGB565 pixel data from the heap and calls `fillPixel` for each pixel. Currently disabled due to firmware opcode incompatibility on v1.1.0.
+The 145-byte Lightpad renderer reads a 450-byte RGB565 heap and paints each grid pixel. The 130-byte LUMI renderer in `keys.py` reads a 48-byte heap and paints each key while preserving the default musical handler. Both initialise the display and answer host execution challenges before the host publishes pixel data.
 
 ## cli/
 
