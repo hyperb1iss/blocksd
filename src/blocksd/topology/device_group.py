@@ -127,10 +127,23 @@ class DeviceGroup:
         self._send_serial_request()
         self._send_topology_request()
 
+        next_tick = self._serial_start_time
         try:
             while self.state != GroupState.FAILED and self.conn.is_open:
-                await self._tick()
-                await asyncio.sleep(TICK_INTERVAL)
+                now = time.monotonic()
+                if now >= next_tick:
+                    self._lifecycle_timer(now)
+                    # Advance the deadline, rather than adding work time to the
+                    # cadence or replaying every missed lifecycle tick.
+                    next_tick += (int((now - next_tick) / TICK_INTERVAL) + 1) * TICK_INTERVAL
+                if self.state == GroupState.FAILED or not self.conn.is_open:
+                    break
+                message = await self.conn.recv(timeout=max(0.0, next_tick - time.monotonic()))
+                if message is not None:
+                    self._process_message(message)
+                # A transport may return queued messages without suspending.
+                # Yield cooperatively so bursts cannot monopolize the loop.
+                await asyncio.sleep(0)
         except asyncio.CancelledError:
             pass
         finally:
@@ -138,22 +151,6 @@ class DeviceGroup:
             self.conn.close()
 
     # ── Packet processing ─────────────────────────────────────────────────
-
-    async def _tick(self) -> None:
-        """Process incoming messages + run lifecycle timer."""
-        # Drain all pending messages
-        for msg in self.conn.drain():
-            self._process_message(msg)
-
-        # Also try async recv with short timeout for any stragglers
-        while True:
-            msg = await self.conn.recv(timeout=0.01)
-            if msg is None:
-                break
-            self._process_message(msg)
-
-        now = time.monotonic()
-        self._lifecycle_timer(now)
 
     def _process_message(self, data: bytes) -> None:
         """Route an incoming SysEx message."""

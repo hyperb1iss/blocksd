@@ -100,3 +100,5 @@ The USB-connected bridge must remain in API mode to forward messages to DNA-conn
 When new frames replaced the heap target during multipart uploads, each packet could start again at the newest changed prefix. A live rainbow sweep exposed the result: only the upper Lightpad rows moved. Completing an immutable transfer snapshot before selecting the newest target restores progress across the whole surface.
 
 Repainting directly from the receiving bank could still mix rows from different frames. The buffered renderer keeps the visible bank immutable until its successor has been fully uploaded and repainted.
+
+Incoming MIDI messages are processed independently of the 200 ms lifecycle timer. The receive loop waits for either a packet or the next timer deadline. Sleeping between receive batches would delay heap and presentation acknowledgements and can trigger unnecessary retransmissions.
