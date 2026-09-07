@@ -71,6 +71,12 @@ ls -la /tmp/blocksd/blocksd.sock
 ls -la $XDG_RUNTIME_DIR/blocksd/blocksd.sock
 ```
 
+## Only Part of the Lightpad Animates
+
+A stripe or moving upper rows with a frozen lower section can indicate an older heap streamer that repeatedly replaces an unfinished frame. Update to a build that completes transfer snapshots. If every row moves but the lower rows lag, use the buffered Lightpad renderer described in [Whole Lightpad Frames](./architecture/littlefoot#whole-lightpad-frames).
+
+API acceptance measures queuing, so successful frame replies alone do not rule out either problem. A static corner pattern can help distinguish orientation or mapping errors from partial animation updates.
+
 ## High CPU Usage
 
 **Symptom**: blocksd using more CPU than expected.
