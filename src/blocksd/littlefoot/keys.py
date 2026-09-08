@@ -10,6 +10,17 @@ from blocksd.littlefoot.lifecycle import KEY_RENDERER, emit_renderer_query_handl
 KEY_COUNT = 24
 KEY_HEAP_SIZE = KEY_COUNT * 2
 
+# ROLI BlockConfigId::brightness, with BlockConfigManager's 0..100 range.
+_HARDWARE_BRIGHTNESS = 36
+_MAX_HARDWARE_BRIGHTNESS = 100
+
+
+def _emit_hardware_brightness(asm: BytecodeAssembler) -> None:
+    """Keep brightness scaling in the host RGB pipeline."""
+    asm.push_int(_MAX_HARDWARE_BRIGHTNESS)
+    asm.push_int(_HARDWARE_BRIGHTNESS)
+    asm.call_native(compute_function_id("setLocalConfig/vii"))
+
 
 @lru_cache(maxsize=1)
 def key_led_program() -> bytes:
@@ -21,6 +32,7 @@ def key_led_program() -> bytes:
     """
     asm = BytecodeAssembler(heap_size=KEY_HEAP_SIZE)
     asm.begin_function("initialise/v")
+    _emit_hardware_brightness(asm)
     asm.push0()
     asm.call_native(compute_function_id("setStatusOverlayActive/vb"))
     # Native arguments are pushed right to left: lighting=false, touch=true.
@@ -67,7 +79,7 @@ def key_led_program() -> bytes:
     asm.label("done")
     asm.drop()
     asm.ret_void()
-    emit_renderer_query_handler(asm, KEY_RENDERER)
+    emit_renderer_query_handler(asm, KEY_RENDERER, on_ready=_emit_hardware_brightness)
     return asm.build()
 
 
