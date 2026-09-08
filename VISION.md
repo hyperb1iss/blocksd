@@ -8,7 +8,7 @@
 
 **blocksd** is a Linux daemon that brings full ROLI Blocks support to Linux. ROLI's official software is Windows/macOS only. On Linux, these devices show a searching animation and eventually power off since there's no host-side driver to activate API mode.
 
-We're building the full protocol stack: device discovery, topology management, API mode keepalive, LED control, touch/pressure input, and eventually LittleFoot program upload. The goal is complete parity with the original ROLI drivers, plus capabilities they never shipped.
+We're building the full protocol stack: device discovery, topology management, API mode keepalive, LED control, touch/pressure input, and LittleFoot LED renderer upload. The goal is complete parity with the original ROLI drivers, plus capabilities they never shipped.
 
 ### What Makes These Devices Special
 
@@ -97,7 +97,7 @@ A physical, tactile interface for home automation.
 
 ---
 
-These are proposed applications, not bundled features. The current daemon skips LittleFoot renderer upload, so LED-based ideas depend on resolving firmware compatibility first. Unix socket and WebSocket APIs already provide discovery and event subscriptions.
+These are proposed applications, not bundled features. Lightpad grid rendering and LUMI per-key colors are available through device-side LittleFoot programs. Unix socket and WebSocket APIs provide discovery and event subscriptions; each application still needs its own integration and hardware checks.
 
 ## 🧪 Experimental Ideas
 
@@ -132,7 +132,7 @@ The devices run LittleFoot, a simple bytecode VM. Programs uploaded to the devic
 
 ### WebSocket / HTTP API
 
-The HTTP dashboard and WebSocket device API exist today. Webhooks, classroom orchestration, and visible LED rendering still need further work:
+The HTTP dashboard, WebSocket device API, and device-side LED renderers exist today. Webhooks, classroom orchestration, and browser painting controls still need further work:
 
 - **Web dashboard**: real-time device status, battery, topology visualization
 - **Remote LED control**: paint on the grid from a phone browser
@@ -154,7 +154,7 @@ The HTTP dashboard and WebSocket device API exist today. Webhooks, classroom orc
 - [x] **DataChange Encoder**: diff-based heap writes with RLE
 - [x] **systemd/udev**: user service, device rules, install/uninstall CLI
 - [x] **Remote Heap Manager**: ACK-tracked heap state, retransmission, in-flight budgets
-- [x] **LittleFoot Assembler**: bytecode assembler with label resolution and FNV1a function hashing
+- [x] **LittleFoot Assembler**: bytecode assembler with program-relative label resolution and native function hashing
 - [x] **CLI LED Commands**: `blocksd led solid '#ff00ff'`, rainbow, gradient, checkerboard
 - [x] **Touch & Button Events**: normalized pressure/velocity callbacks
 - [x] **Config Commands**: device settings read/write via CLI
@@ -162,10 +162,11 @@ The HTTP dashboard and WebSocket device API exist today. Webhooks, classroom orc
 - [x] **Unix Socket API**: NDJSON + binary frame protocol for external clients
 - [x] **WebSocket & HTTP API**: browser-based control, monitoring, and LED streaming
 - [x] **Web Dashboard**: `blocksd ui` launches a real-time device status interface
+- [x] **LittleFoot LED Renderers**: Lightpad bitmap and LUMI key colors, with execution-ready startup and visible RGB validation on Lightpad M 1.1.0 / LUMI 1.3.9
 
 ### In Progress
 
-- [ ] **LittleFoot Program Upload**: BitmapLEDProgram bytecode to device memory (blocked by firmware opcode incompatibility on v1.1.0; `getHeapBits` and `dupOffset` crash the VM; assembler and programs are complete, upload is disabled pending firmware fix)
+- [ ] **Hardware Acceptance Coverage**: live MIDI/MPE preservation during LUMI lighting, sustained frame timing, reconnect behavior, and color calibration
 
 ### Planned
 

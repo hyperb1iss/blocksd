@@ -26,13 +26,19 @@ from blocksd.device.registry import (
     block_type_from_serial,
     heap_size_for_block,
     supports_bitmap_led_program,
+    supports_key_led_program,
 )
-from blocksd.littlefoot.programs import bitmap_led_program_size
+from blocksd.led.buffered_program import BufferedLEDProgram
+from blocksd.led.program import LEDProgram
+from blocksd.littlefoot.keys import KEY_HEAP_SIZE, key_led_program
+from blocksd.littlefoot.lifecycle import BITMAP_RENDERER, KEY_RENDERER
+from blocksd.littlefoot.programs import bitmap_led_program
 from blocksd.protocol.builder import (
     build_begin_api_mode,
     build_config_request,
     build_end_api_mode,
     build_ping,
+    build_program_event,
     build_request_topology,
 )
 from blocksd.protocol.constants import SERIAL_DUMP_REQUEST
@@ -58,36 +64,6 @@ DNA_PING_INTERVAL = 1.666  # ~1666ms for DNA-connected blocks
 SERIAL_REQUEST_INTERVAL = 0.3  # 300ms between serial dump requests
 SERIAL_TIMEOUT = 5.0  # give up serial after 5s
 TICK_INTERVAL = 0.2  # 200ms lifecycle timer (matches C++ timerInterval)
-
-
-def _build_green_fill() -> bytes:
-    """Fill 15x15 grid with green — fully unrolled, no loops or dupOffset.
-
-    Emits 225 hardcoded fillPixel calls. Large but guaranteed to work
-    since it only uses opcodes proven safe on firmware v1.1.0.
-    """
-    from blocksd.littlefoot.assembler import BytecodeAssembler, compute_function_id
-
-    make_argb = compute_function_id("makeARGB/iiiii")
-    fill_pixel = compute_function_id("fillPixel/viii")
-
-    asm = BytecodeAssembler(heap_size=0)
-    asm.begin_function("repaint/v")
-
-    for y in range(15):
-        for x in range(15):
-            # fillPixel(makeARGB(255, 0, 255, 0), x, y) — all args hardcoded
-            asm.push8(y)  # y (RTL: pushed first)
-            asm.push8(x)  # x
-            asm.push0()  # blue = 0
-            asm.push16(255)  # green = 255
-            asm.push0()  # red = 0
-            asm.push16(255)  # alpha = 255
-            asm.call_native(make_argb)
-            asm.call_native(fill_pixel)
-
-    asm.ret_void(0)
-    return asm.build()
 
 
 class GroupState(StrEnum):
@@ -127,6 +103,7 @@ class DeviceGroup:
         self._pings: dict[int, PingEntry] = {}  # uid → PingEntry
         self._end_api_sent: set[int] = set()  # UIDs that received endAPIMode this session
         self._heaps: dict[int, RemoteHeap] = {}  # uid → RemoteHeap
+        self._led_programs: dict[int, LEDProgram] = {}
         self._config: dict[int, dict[int, ConfigValue]] = {}  # uid → {item → ConfigValue}
 
         # Timing
@@ -150,10 +127,23 @@ class DeviceGroup:
         self._send_serial_request()
         self._send_topology_request()
 
+        next_tick = self._serial_start_time
         try:
             while self.state != GroupState.FAILED and self.conn.is_open:
-                await self._tick()
-                await asyncio.sleep(TICK_INTERVAL)
+                now = time.monotonic()
+                if now >= next_tick:
+                    self._lifecycle_timer(now)
+                    # Advance the deadline, rather than adding work time to the
+                    # cadence or replaying every missed lifecycle tick.
+                    next_tick += (int((now - next_tick) / TICK_INTERVAL) + 1) * TICK_INTERVAL
+                if self.state == GroupState.FAILED or not self.conn.is_open:
+                    break
+                message = await self.conn.recv(timeout=max(0.0, next_tick - time.monotonic()))
+                if message is not None:
+                    self._process_message(message)
+                # A transport may return queued messages without suspending.
+                # Yield cooperatively so bursts cannot monopolize the loop.
+                await asyncio.sleep(0)
         except asyncio.CancelledError:
             pass
         finally:
@@ -161,22 +151,6 @@ class DeviceGroup:
             self.conn.close()
 
     # ── Packet processing ─────────────────────────────────────────────────
-
-    async def _tick(self) -> None:
-        """Process incoming messages + run lifecycle timer."""
-        # Drain all pending messages
-        for msg in self.conn.drain():
-            self._process_message(msg)
-
-        # Also try async recv with short timeout for any stragglers
-        while True:
-            msg = await self.conn.recv(timeout=0.01)
-            if msg is None:
-                break
-            self._process_message(msg)
-
-        now = time.monotonic()
-        self._lifecycle_timer(now)
 
     def _process_message(self, data: bytes) -> None:
         """Route an incoming SysEx message."""
@@ -319,10 +293,9 @@ class DeviceGroup:
             self._pings[uid] = PingEntry(uid, last_ack=now, last_ping_sent=now, connected_at=now)
             dev = self._devices.get(uid)
             if dev:
-                # Create a RemoteHeap and load LED program
+                # Leave the factory program active until a lighting request arrives.
                 if uid not in self._heaps:
                     self._heaps[uid] = RemoteHeap(heap_size_for_block(dev.block_type))
-                    self._load_led_program(uid)
                 self._request_config_sync(uid)
                 for cb in self.on_device_added:
                     cb(dev)
@@ -342,32 +315,35 @@ class DeviceGroup:
         heap = self._heaps.get(uid)
         if dev is None or heap is None or not supports_bitmap_led_program(dev.block_type):
             return False
-        offset = bitmap_led_program_size()
-        if offset + len(pixel_data) > heap.size:
+        if len(pixel_data) != 450:
             return False
-        heap.set_bytes(offset, pixel_data)
+        if uid not in self._led_programs:
+            self._led_programs[uid] = BufferedLEDProgram(
+                heap, bitmap_led_program(), BITMAP_RENDERER, 450
+            )
+        self._led_programs[uid].set_frame(pixel_data)
         self._flush_heap(uid, heap, time.monotonic())
         return True
 
-    def _load_led_program(self, uid: int) -> None:
-        """Load LED test program into a device's heap.
-
-        TODO: Replace with proper BitmapLEDProgram once firmware opcode
-        compatibility is resolved (getHeapBits 0x40 and dupOffset_01 0x11
-        are not supported on firmware v1.1.0).
-        """
+    def set_key_led_data(self, uid: int, pixel_data: bytes | bytearray) -> bool:
+        """Queue a 24-key RGB565 frame while retaining firmware MIDI handling."""
         dev = self._devices.get(uid)
         heap = self._heaps.get(uid)
-        if dev is None or heap is None:
-            return
-        if not supports_bitmap_led_program(dev.block_type):
-            return
-        # TODO: Replace with proper BitmapLEDProgram using firmware-safe opcodes
-        # For now, skip program upload — device keeps its default LED animation.
-        return
-        program = _build_green_fill()
-        heap.set_bytes(0, program)
-        log.debug("Loaded green fill program (%d bytes) for %s", len(program), dev.serial)
+        if dev is None or heap is None or not supports_key_led_program(dev.block_type):
+            return False
+        try:
+            version = tuple(int(part) for part in dev.version.rstrip("\x00").split("."))
+        except ValueError:
+            return False
+        if len(version) != 3 or version < (1, 3, 0) or len(pixel_data) != KEY_HEAP_SIZE:
+            return False
+        if uid not in self._led_programs:
+            self._led_programs[uid] = LEDProgram(
+                heap, key_led_program(), KEY_RENDERER, KEY_HEAP_SIZE
+            )
+        self._led_programs[uid].set_frame(pixel_data)
+        self._flush_heap(uid, heap, time.monotonic())
+        return True
 
     def _flush_heaps(self, now: float) -> None:
         """Send pending heap changes and retransmit timed-out packets."""
@@ -383,6 +359,9 @@ class DeviceGroup:
         dev = self._devices.get(uid)
         if dev is None:
             return
+
+        if (program := self._led_programs.get(uid)) and (query := program.advance(now)):
+            self.conn.send(build_program_event(dev.topology_index, query))
 
         retransmit = heap.get_retransmit(now)
         if retransmit is not None:
@@ -451,6 +430,7 @@ class DeviceGroup:
         dev = self._devices.pop(uid, None)
         self._pings.pop(uid, None)
         self._heaps.pop(uid, None)
+        self._led_programs.pop(uid, None)
         self._config.pop(uid, None)
         # NOTE: _end_api_sent is intentionally NOT cleared here.
         # If the device reappears (e.g. transient DNA glitch), we skip
@@ -554,7 +534,8 @@ class DeviceGroup:
         uid = self._uid_from_index(device_index)
         if uid:
             self._update_api_ping(uid)
-            if (heap := self._heaps.get(uid)) and heap.handle_ack(counter):
+            if heap := self._heaps.get(uid):
+                heap.handle_ack(counter)
                 self._flush_heap(uid, heap, time.monotonic())
 
     def on_firmware_update_ack(self, device_index: int, code: int, detail: int) -> None:  # noqa: ARG002
@@ -596,7 +577,11 @@ class DeviceGroup:
     def on_program_event(
         self, device_index: int, timestamp: int, data: tuple[int, int, int]
     ) -> None:
-        pass
+        uid = self._uid_from_index(device_index)
+        if (program := self._led_programs.get(uid)) is not None:
+            log.debug("Renderer event from %d at %d: %s", uid, timestamp, data)
+            program.on_ready(data)
+            self._flush_heap(uid, program.heap, time.monotonic())
 
     def on_config_update(
         self, device_index: int, item: int, value: int, min_val: int, max_val: int

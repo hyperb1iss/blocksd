@@ -41,7 +41,7 @@ ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter 
 | 🔌 **API Mode Keepalive**    | Periodic pings prevent the 5-second device timeout that kills API mode                          |
 | 🏗️ **Topology Management**   | Auto-discovers devices over USB, tracks DNA-connected blocks through master                     |
 | 🎭 **Full State Machine**    | Serial → topology → API activation → ping loop, matching the C++ reference                      |
-| 💡 **LED Control**           | Lightpad / Lightpad M RGB565 bitmap grid, CLI patterns (solid, gradient, rainbow, checkerboard) |
+| 💡 **LED Control**           | Lightpad RGB565 grids and LUMI per-key colors, with CLI patterns |
 | 👆 **Touch & Button Events** | Normalized touch data (x/y/z/velocity) and button callbacks                                     |
 | ⚙️ **Device Config**         | Read/write device settings (sensitivity, MIDI channel, scale, etc.)                             |
 | 🔊 **DAW Friendly**          | ALSA multi-client, blocksd and your DAW share MIDI without conflict                             |
@@ -104,7 +104,7 @@ The `install` command sets up:
 
 ## ⚡ Usage
 
-The current daemon does not upload its LittleFoot LED renderer (firmware opcode compatibility remains unresolved). LED commands and API frames can update heap data, but an accepted write does not establish visible LED output. See the [LittleFoot notes](https://hyperb1iss.github.io/blocksd/architecture/littlefoot).
+The first LED frame loads a device-side LittleFoot renderer. The daemon waits for complete upload acknowledgement and a matching reply to a fresh execution challenge before sending pixels. Visible RGB patterns have been verified on Lightpad Block M firmware 1.1.0 and LUMI Keys firmware 1.3.9. An accepted API frame confirms daemon acceptance, not a visible display change. See the [LittleFoot notes](https://hyperb1iss.github.io/blocksd/architecture/littlefoot) for the hardware evidence and remaining checks.
 
 ### Running the Daemon
 
@@ -154,7 +154,15 @@ blocksd led gradient ff0000 0000ff                    # horizontal gradient
 blocksd led gradient ff0000 0000ff --vertical         # vertical gradient
 blocksd led checkerboard ff0000 00ff00                # 1x1 checkerboard
 blocksd led checkerboard ff0000 00ff00 --size 3       # 3×3 checkerboard
-blocksd led off                                       # lights off
+blocksd led off                                       # Lightpad lights off
+```
+
+Control all 24 LUMI key colors (firmware 1.3.0 or newer):
+
+```bash
+blocksd led keys                       # rainbow across the keys
+blocksd led keys '#ff00ff'              # one color on every key
+blocksd led keys 000000                 # key lights off
 ```
 
 ### Device Configuration
@@ -206,9 +214,9 @@ blocksd uninstall                      # remove service and udev rules
 The quick rules:
 
 - Use `discover` first to get the device `uid`
-- Only stream frames to devices advertising nonzero `grid_width` and
-  `grid_height` in discovery
-- Use the fixed-size binary frame protocol for animation and streaming
+- Use bitmap frames for devices with nonzero `grid_width` and `grid_height`
+- Use JSON `key_frame` for LUMI devices with `key_count = 24`
+- Use the fixed-size binary frame protocol for Lightpad animation and streaming
 - Treat `frame_ack.accepted=false` or binary ack `0x00` as a rejected write:
   this usually means the device is not ready yet, the `uid` is gone, or the
   payload was malformed
@@ -248,7 +256,7 @@ blocksd
 ├── littlefoot/
 │   ├── opcodes.py            LittleFoot VM opcode definitions
 │   ├── assembler.py          bytecode assembler with label support
-│   └── programs.py           BitmapLEDProgram (100-byte repaint)
+│   └── programs.py           BitmapLEDProgram (145 bytes)
 ├── topology/
 │   ├── detector.py           MIDI port scanning
 │   ├── device_group.py       connection lifecycle (the big one)
@@ -304,9 +312,10 @@ Host                                          Device
 | Touch Block             | Unknown             | `TCB`         | 🔲 Untested |
 | Seaboard RISE 25/49     | `0x0200` / `0x0210` | N/A           | 🔲 Untested |
 
-Bitmap LED streaming is currently exposed for Lightpad Block / Lightpad Block M
-only. Other devices are still discoverable and supported by the topology/API
-state machine, but they do not advertise a bitmap frame surface.
+Lightpad Block / Lightpad Block M expose a 15×15 bitmap surface. LUMI Keys
+exposes 24 key colors through a separate key-frame API. Visible RGB patterns
+were confirmed on Lightpad M 1.1.0 and LUMI 1.3.9 on September 7, 2026. Other
+recognized Blocks can use discovery and keepalive; their lighting is unverified.
 
 ## 🧪 Development
 
@@ -330,7 +339,7 @@ See [VISION.md](VISION.md) for the full vision, use cases, and ideas beyond musi
 - [x] **API Mode Keepalive**: full state machine with correct ping timing
 - [x] **Remote Heap Manager**: ACK tracking, retransmission, heap state sync
 - [x] **LittleFoot Assembler**: bytecode generation and BitmapLEDProgram definition
-- [ ] **LittleFoot Upload**: firmware-compatible renderer for visible LED output
+- [x] **LittleFoot Upload**: execution-ready handshake for Lightpad and LUMI renderers
 - [x] **CLI LED Commands**: `blocksd led solid '#ff00ff'`, `blocksd led rainbow`
 - [x] **Touch/Button Events**: normalized callbacks with full velocity data
 - [x] **Config Commands**: read/write device settings via CLI

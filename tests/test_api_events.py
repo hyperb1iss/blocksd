@@ -196,9 +196,15 @@ class TestDeviceSerialization:
         assert d["block_type"] == "lumi_keys"
         assert d["grid_width"] == 0
         assert d["grid_height"] == 0
+        assert d["key_count"] == 24
         assert d["battery_level"] == 50
         assert d["battery_charging"] is True
         assert d["firmware_version"] == "1.2.3"
+
+    def test_lightpad_has_no_physical_keys(self, lightpad: DeviceInfo) -> None:
+        d = _device_to_dict(lightpad)
+        assert d["key_count"] == 0
+        assert d["grid_width"] == d["grid_height"] == 15
 
     def test_block_type_mapping(self) -> None:
         assert _block_type_to_api(BlockType.LIGHTPAD) == "lightpad"

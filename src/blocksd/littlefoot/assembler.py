@@ -188,9 +188,7 @@ class BytecodeAssembler:
         self._emit_byte(Op.DUP)
 
     def dup_offset(self, offset: int) -> None:
-        # Always use the general form with explicit int8 operand.
-        # Firmware v1.1.0 doesn't have the fast-path dupOffset_01-07
-        # opcodes — position 0x12 is the general dupOffset(int8).
+        # Encode stack indices explicitly with the general duplication form.
         if offset <= 0xFF:
             self._emit_byte(Op.DUP_OFFSET)
             self._emit_byte(offset & 0xFF)
@@ -252,10 +250,9 @@ class BytecodeAssembler:
 
     def build(self) -> bytes:
         """Assemble the final program binary with header, function table, and bytecode."""
-        self._resolve_labels()
-
         func_table_size = len(self._functions) * _FUNC_ENTRY_SIZE
         code_base = _HEADER_SIZE + func_table_size
+        self._resolve_labels(code_base)
 
         # Build function table
         func_table = bytearray()
@@ -291,10 +288,10 @@ class BytecodeAssembler:
     def _emit_i32(self, value: int) -> None:
         self._code.extend(struct.pack("<i", value))
 
-    def _resolve_labels(self) -> None:
-        """Patch all label references with actual code offsets."""
+    def _resolve_labels(self, code_base: int) -> None:
+        """Patch labels with addresses relative to the complete program binary."""
         for fixup in self._fixups:
             if fixup.label not in self._labels:
                 raise ValueError(f"Undefined label: {fixup.label!r}")
-            target = self._labels[fixup.label]
+            target = code_base + self._labels[fixup.label]
             struct.pack_into("<h", self._code, fixup.code_offset, target)

@@ -57,11 +57,11 @@ Common causes:
 
 **Symptom**: `blocksd led solid '#ff00ff'` returns but the Lightpad doesn't change.
 
-**Check the renderer limitation first.** The daemon currently skips LittleFoot program upload. Heap writes may be accepted without changing the display. See [LittleFoot status](./architecture/littlefoot).
+**Check renderer startup.** The first frame uploads a renderer, then waits for complete code acknowledgement and a matching execution challenge reply before sending pixels. An accepted API frame can still be queued during startup. Check verbose logs for renderer initialisation or device errors, and see [LittleFoot status](./architecture/littlefoot) for tested firmware.
 
 The LED CLI opens its own MIDI session and stays running until Ctrl+C. Stop the service before using it; API clients should instead connect to the running daemon.
 
-**Is it a Lightpad?** Only Lightpad Block and Lightpad Block M support LED bitmap control. The current bitmap API does not expose a grid for devices such as LUMI Keys.
+**Use the matching lighting surface.** Lightpad Block and Lightpad Block M accept bitmap frames. LUMI Keys uses `blocksd led keys` or JSON `key_frame` and requires firmware 1.3.0 or newer.
 
 **Check the socket**:
 
@@ -70,6 +70,12 @@ ls -la /tmp/blocksd/blocksd.sock
 # or
 ls -la $XDG_RUNTIME_DIR/blocksd/blocksd.sock
 ```
+
+## Only Part of the Lightpad Animates
+
+A stripe or moving upper rows with a frozen lower section can indicate an older heap streamer that repeatedly replaces an unfinished frame. Update to a build that completes transfer snapshots. If every row moves but the lower rows lag, use the buffered Lightpad renderer described in [Whole Lightpad Frames](./architecture/littlefoot#whole-lightpad-frames).
+
+API acceptance measures queuing, so successful frame replies alone do not rule out either problem. A static corner pattern can help distinguish orientation or mapping errors from partial animation updates.
 
 ## High CPU Usage
 

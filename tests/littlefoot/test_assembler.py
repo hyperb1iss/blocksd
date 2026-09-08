@@ -191,6 +191,55 @@ class TestAssemblerOpcodes:
 
 
 class TestAssemblerLabels:
+    @pytest.mark.parametrize("instruction", ["jump", "jump_if_true", "jump_if_false", "call"])
+    @pytest.mark.parametrize("function_count", [1, 2])
+    def test_forward_target_is_program_address(self, instruction, function_count):
+        asm = BytecodeAssembler()
+        asm.begin_function("test/v")
+        getattr(asm, instruction)("end")
+        asm.push0()
+        asm.label("end")
+        asm.push8(42)
+        asm.ret_void()
+        if function_count == 2:
+            asm.begin_function("other/v")
+            asm.ret_void()
+
+        program = asm.build()
+        entry = struct.unpack_from("<H", program, 12)[0]
+        target = struct.unpack_from("<H", program, entry + 1)[0]
+        # The VM resolves jumps from programBase, including the header and table.
+        assert target == entry + 4
+        assert program[target : target + 2] == bytes([Op.PUSH_8, 42])
+        assert asm.build() == program
+
+    def test_backward_target_matches_function_entry(self):
+        asm = BytecodeAssembler()
+        asm.begin_function("test/v")
+        asm.label("top")
+        asm.push0()
+        asm.jump("top")
+
+        program = asm.build()
+        entry = struct.unpack_from("<H", program, 12)[0]
+        target = struct.unpack_from("<H", program, entry + 2)[0]
+        assert target == entry
+
+    def test_rebuild_relocates_labels_after_function_table_grows(self):
+        asm = BytecodeAssembler()
+        asm.begin_function("test/v")
+        asm.label("top")
+        asm.jump("top")
+        first = asm.build()
+        asm.begin_function("other/v")
+        asm.ret_void()
+        second = asm.build()
+
+        first_entry = struct.unpack_from("<H", first, 12)[0]
+        second_entry = struct.unpack_from("<H", second, 12)[0]
+        assert second_entry == first_entry + 4
+        assert struct.unpack_from("<H", second, second_entry + 1)[0] == second_entry
+
     def test_forward_jump(self):
         asm = BytecodeAssembler()
         asm.begin_function("test/v")

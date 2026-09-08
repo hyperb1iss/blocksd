@@ -501,3 +501,20 @@ class TestIntegration:
         assert len(packets) > 1
         assert _decode_end_marker(packets[0]) == "end_of_packet"
         assert _decode_end_marker(packets[-1]) == "end_of_changes"
+
+
+def test_generation_changes_only_when_confirmed_state_is_invalidated():
+    heap = RemoteHeap(7200)
+    assert heap.generation == 0
+    heap.set_bytes(0, b"program")
+    assert heap.send_changes(0) is not None
+    assert heap.handle_ack((heap.packet_index - 1) & 0x3FF)
+    assert heap.generation == 0
+    assert not heap.handle_ack((heap.packet_index - 1) & 0x3FF)
+    assert heap.generation == 0
+    assert not heap.handle_ack(99)
+    assert heap.generation == 1
+    heap.reset_device_state()
+    assert heap.generation == 2
+    heap.reset()
+    assert heap.generation == 3

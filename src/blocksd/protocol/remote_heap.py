@@ -64,8 +64,10 @@ class RemoteHeap:
 
     def __init__(self, size: int) -> None:
         self._size = size
+        self._generation = 0
         self._device_state: list[int] = [_UNKNOWN] * size
         self._target = bytearray(size)
+        self._transfer_target: bytes | None = None
         self._messages: deque[_InFlightMessage] = deque()
         self._packet_index: int = 0
         self._last_packet_index_received: int = 0
@@ -76,12 +78,19 @@ class RemoteHeap:
         return self._size
 
     @property
+    def generation(self) -> int:
+        """Monotonic epoch of the confirmed device state."""
+        return self._generation
+
+    @property
     def is_dirty(self) -> bool:
         """True if target differs from expected device state.
 
-        A blank target (all zeros) is never dirty — matches the ROLI
-        isAllZero guard that prevents flushing an empty heap.
+        Without an active transfer, a blank target (all zeros) is never dirty.
+        This matches the ROLI isAllZero guard against flushing an empty heap.
         """
+        if self._transfer_target is not None:
+            return True
         if not any(self._target):
             return False
         return self._expected_state() != self._target
@@ -104,6 +113,8 @@ class RemoteHeap:
 
     def reset(self) -> None:
         """Reset all state — device becomes unknown, target zeroed."""
+        self._transfer_target = None
+        self._generation += 1
         self._device_state = [_UNKNOWN] * self._size
         self._target = bytearray(self._size)
         self._messages.clear()
@@ -116,6 +127,8 @@ class RemoteHeap:
 
         Clears in-flight messages since they'll never be ACK'd.
         """
+        self._transfer_target = None
+        self._generation += 1
         self._device_state = [_UNKNOWN] * self._size
         self._messages.clear()
         self._packet_index = (
@@ -142,12 +155,18 @@ class RemoteHeap:
 
         # Match ROLI isAllZero check: don't send changes if target is blank.
         # This avoids flushing 7200 bytes of zeros before any program is loaded.
-        if not any(self._target):
-            return None
+        if self._transfer_target is None:
+            if not any(self._target):
+                return None
+            # Finish this snapshot before newer frames can replace its prefix.
+            # The desired target keeps coalescing while packets are in flight.
+            self._transfer_target = bytes(self._target)
 
-        expected = self._expected_state()
-        regions = compute_diff(expected, self._target)
+        target = self._transfer_target
+        expected = self._expected_state(target)
+        regions = compute_diff(expected, target)
         if not regions:
+            self._transfer_target = None
             return None
 
         if self._messages:
@@ -163,7 +182,7 @@ class RemoteHeap:
         builder.begin_data_changes(packet_index)
 
         encoder = DataChangeEncoder(builder.writer)
-        is_complete = encode_regions_limited(encoder, regions, self._target, result_state)
+        is_complete = encode_regions_limited(encoder, regions, target, result_state)
         if result_state == expected:
             return None
         encoder.end(is_last=is_complete)
@@ -182,6 +201,8 @@ class RemoteHeap:
             )
         )
         self._packet_index = (packet_index + 1) & _COUNTER_MASK
+        if is_complete:
+            self._transfer_target = None
         return packet
 
     def handle_ack(self, packet_index: int) -> bool:
@@ -233,7 +254,7 @@ class RemoteHeap:
             return oldest.packet_data
         return None
 
-    def _expected_state(self) -> bytearray:
+    def _expected_state(self, target: bytes | bytearray | None = None) -> bytearray:
         """Get the optimistic expected device state.
 
         If messages are in-flight, returns the tail message's result state
@@ -245,7 +266,9 @@ class RemoteHeap:
         """
         if self._messages:
             return bytearray(self._messages[-1].result_state)
+        if target is None:
+            target = self._target
         return bytearray(
-            (self._target[i] ^ 0xFF) if b == _UNKNOWN else (b & 0xFF)
+            (target[i] ^ 0xFF) if b == _UNKNOWN else (b & 0xFF)
             for i, b in enumerate(self._device_state)
         )

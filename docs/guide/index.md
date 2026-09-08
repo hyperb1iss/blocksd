@@ -59,7 +59,7 @@ See the [Vision document](https://github.com/hyperb1iss/blocksd/blob/main/VISION
 
 ## Project Status
 
-blocksd is in alpha. Discovery and keepalive have prior hardware reports, but coverage varies by device and firmware. LittleFoot program upload is disabled because of firmware opcode incompatibilities. The unrolled fill program is also unreachable in the current daemon; accepted LED frames do not guarantee visible rendering. The hardware-independent test suite verifies software behavior, not device compatibility.
+blocksd is in alpha. Visible RGB patterns have been verified on Lightpad Block M firmware 1.1.0 and LUMI Keys firmware 1.3.9. Lighting loads a device-side renderer on the first frame. Hardware coverage varies by device and firmware; live MIDI/MPE preservation during LUMI lighting, sustained timing, and physical color calibration remain unverified. The hardware-independent test suite verifies software behavior, not device compatibility.
 
 | Phase                             | Status                |
 | --------------------------------- | --------------------- |

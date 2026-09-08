@@ -38,8 +38,8 @@ WebSocket clients send JSON in text messages and the same 685-byte LED packet in
 
 1. Open a control socket
 2. Send `discover` to get the device list and `uid` values
-3. Only stream LED frames to devices with nonzero `grid_width` and `grid_height`
-4. Use the binary frame path (not JSON `frame`) for LED animation
+3. Use bitmap frames for nonzero grid dimensions; use JSON `key_frame` for `key_count = 24`
+4. Use the binary frame path for Lightpad animation; LUMI key frames use JSON
 5. Retry early frame rejections while the device is still coming up
 6. Open a second socket for `subscribe` if you also need events
 
@@ -75,7 +75,7 @@ Each parsed binary frame write returns one acknowledgement byte (inside a binary
 
 `0x00` means the device was unavailable, the `uid` was unknown, or the payload was invalid. Early rejections during device startup are retryable.
 
-Acceptance confirms a daemon-side heap update, not a hardware acknowledgement or visible display change. LittleFoot renderer upload is currently disabled; see the [firmware limitation](../architecture/littlefoot).
+Acceptance confirms that the daemon accepted the frame, not a hardware acknowledgement or visible display change. The first frame triggers renderer upload and can remain queued until the code transfer is acknowledged and the renderer answers a fresh execution challenge. See [renderer startup](../architecture/littlefoot).
 
 ### Python Example
 
@@ -139,6 +139,7 @@ List all connected devices with capabilities and battery status.
       "name": "",
       "grid_width": 15,
       "grid_height": 15,
+      "key_count": 0,
       "battery_level": 31,
       "battery_charging": false,
       "firmware_version": null
@@ -150,10 +151,10 @@ List all connected devices with capabilities and battery status.
 
 The `uid` is a deterministic 64-bit identifier derived from the device serial. Clients can cache it across daemon restarts.
 
-Devices with `grid_width = 0` and `grid_height = 0` do not expose an LED frame surface. Only Lightpad Block and Lightpad Block M advertise non-zero grid dimensions.
+Only Lightpad Block and Lightpad Block M advertise nonzero grid dimensions and accept bitmap frames. LUMI advertises `grid_width = 0`, `grid_height = 0`, and `key_count = 24`; use `key_frame` for its key colors. Other recognized devices report `key_count = 0`.
 
 ::: warning
-Discovery is topology-driven, not readiness-driven. A device can appear in `discover_response` before the daemon has finished API mode activation and heap setup. Keep writing frames only after you get an accepted ack.
+A device can appear in `discover_response` before API mode activation and heap setup finish. Retry rejected writes after discovery settles. An accepted frame can still be waiting for renderer initialisation; acceptance does not expose renderer readiness.
 :::
 
 ### `frame`
@@ -169,6 +170,24 @@ JSON-based LED frame write. Supported for compatibility and debugging, but not r
 ```
 
 The `pixels` field is a base64-encoded 675-byte RGB888 payload. Use the binary protocol for high-rate updates.
+
+### `key_frame`
+
+Write the 24 LUMI key colors in key-index order. The `pixels` field contains base64-encoded RGB888 data: exactly 72 bytes (red, green, blue for each key). The daemon applies the connection server's brightness setting and converts the data to the renderer's 48-byte RGB565 heap.
+
+The key renderer sets LUMI's hardware brightness to 100% when it starts and when it answers a readiness challenge after reconnecting. Clients control dimming through their RGB values or the API brightness setting. Gamma correction is unchanged.
+
+```json
+{ "type": "key_frame", "uid": 42, "pixels": "...base64..." }
+```
+
+```json
+{ "type": "key_frame_ack", "uid": 42, "accepted": true }
+```
+
+Key frames require a LUMI device with a reported firmware version of 1.3.0 or newer. Invalid base64, incorrect length, an unsupported device, or an unavailable/older firmware version produces `accepted: false`. The existing 685-byte binary frame format remains dedicated to 15×15 Lightpad grids.
+
+For example, construct a red frame in Python with `base64.b64encode(bytes([255, 0, 0]) * 24).decode("ascii")`.
 
 ### `brightness`
 
@@ -295,7 +314,8 @@ Frame writes are rejected when:
 
 - The `uid` does not exist
 - The payload size is wrong
-- The device has not finished entering API/heap-ready state
-- The block does not expose LED heap control
+- The device has not finished entering API mode or has no heap
+- The device does not support the requested bitmap or key surface
+- A key frame targets unsupported or unavailable LUMI firmware
 
 When in doubt: retry discovery, retry frame writes until accepted, and assume a reconnect invalidates any cached readiness state.

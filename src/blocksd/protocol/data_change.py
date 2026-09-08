@@ -222,6 +222,14 @@ def encode_regions_limited(
     """
     for region in regions:
         if region.is_skip:
+            many, remainder = divmod(region.count, _MANY_MAX)
+            skip_bits = many * (BitSize.DATA_CHANGE_COMMAND + BitSize.BYTE_COUNT_MANY)
+            if remainder:
+                skip_bits += BitSize.DATA_CHANGE_COMMAND + (
+                    BitSize.BYTE_COUNT_FEW if remainder <= _FEW_MAX else BitSize.BYTE_COUNT_MANY
+                )
+            if not encoder._writer.has_capacity(skip_bits + _END_BITS):
+                return False
             encoder.skip_bytes(region.count)
             continue
 
