@@ -175,6 +175,8 @@ The `pixels` field is a base64-encoded 675-byte RGB888 payload. Use the binary p
 
 Write the 24 LUMI key colors in key-index order. The `pixels` field contains base64-encoded RGB888 data: exactly 72 bytes (red, green, blue for each key). The daemon applies the connection server's brightness setting and converts the data to the renderer's 48-byte RGB565 heap.
 
+The key renderer sets LUMI's hardware brightness to 100% when it starts and when it answers a readiness challenge after reconnecting. Clients control dimming through their RGB values or the API brightness setting. Gamma correction is unchanged.
+
 ```json
 { "type": "key_frame", "uid": 42, "pixels": "...base64..." }
 ```
