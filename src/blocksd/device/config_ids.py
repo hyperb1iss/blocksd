@@ -1,31 +1,46 @@
-"""Block configuration item IDs — indices used in config get/set messages."""
+"""System configuration IDs from the ROLI BLOCKS SDK's roli_BlockConfigId.h."""
 
 from enum import IntEnum
 
 
 class BlockConfigId(IntEnum):
-    """Known configuration items for ROLI Blocks."""
+    """SDK system IDs; availability and ranges depend on the device program."""
 
-    VELOCITY_SENSITIVITY = 10
-    SLIDE_SENSITIVITY = 11
-    SLIDE_CC = 6
-    GLIDE_SENSITIVITY = 12
-    PRESSURE_SENSITIVITY = 13
-    LIFT_SENSITIVITY = 14
+    MIDI_START_CHANNEL = 0
+    MIDI_END_CHANNEL = 1
+    MIDI_USE_MPE = 2
     PITCHBEND_RANGE = 3
     OCTAVE = 4
     TRANSPOSE = 5
-    MIDI_CHANNEL_MODE = 7
+    SLIDE_CC = 6
+    SLIDE_MODE = 7
+    OCTAVE_TOPOLOGY = 8
+    MIDI_CHANNEL_RANGE = 9
+    VELOCITY_SENSITIVITY = 10
+    GLIDE_SENSITIVITY = 11
+    SLIDE_SENSITIVITY = 12
+    PRESSURE_SENSITIVITY = 13
+    LIFT_SENSITIVITY = 14
     FIXED_VELOCITY = 15
+    FIXED_VELOCITY_VALUE = 16
+    PIANO_MODE = 17
     GLIDE_LOCK_RATE = 18
     GLIDE_LOCK_ENABLED = 19
-    GRID_SIZE = 20
+    MODE = 20
+    VOLUME = 21
     SCALE = 22
     HIDE_MODE = 23
-    COLOUR_PRESET = 24
-    MPE_ZONE = 30
-    MPE_CHANNEL_START = 31
-    MPE_CHANNEL_END = 32
+    CHORD = 24
+    ARP_PATTERN = 25
+    TEMPO = 26
+    KEY = 27
+    AUTO_TRANSPOSE_TO_KEY = 28
+    X_TRACKING_MODE = 30
+    Y_TRACKING_MODE = 31
+    Z_TRACKING_MODE = 32
     GAMMA_CORRECTION = 33
-    PIANO_MODE = 17
-    FIXED_VELOCITY_VALUE = 16
+    GLOBAL_KEY_COLOUR = 34
+    ROOT_KEY_COLOUR = 35
+    BRIGHTNESS = 36
+    MPE_ZONE = 40
+    KEY_PITCH_BEND_AMOUNT = 41

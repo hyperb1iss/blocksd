@@ -56,7 +56,7 @@ Maps serial number prefixes to `BlockType` values. Used during device identifica
 
 ### `config_ids.py`
 
-Known device configuration item IDs and their human-readable descriptions. Used by the `blocksd config list` command and for config sync.
+SDK system configuration IDs and their names, displayed by `blocksd config list`. Config synchronization and API requests use numeric IDs directly.
 
 ## topology/
 
