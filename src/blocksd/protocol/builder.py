@@ -56,6 +56,7 @@ class HostPacketBuilder:
 
         self._writer.write_bits(MessageFromHost.CONFIG_MESSAGE, BitSize.MESSAGE_TYPE)
         self._writer.write_bits(ConfigCommand.REQUEST_CONFIG, BitSize.CONFIG_COMMAND)
+        self._writer.write_bits(0, 32)  # Reserved address precedes the requested item.
         self._writer.write_bits(item, BitSize.CONFIG_ITEM_INDEX)
 
     def config_request_user_sync(self) -> None:

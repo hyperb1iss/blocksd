@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from blocksd.protocol.builder import (
     HostPacketBuilder,
     build_config_request,
@@ -32,6 +34,19 @@ class TestBuildConfigSet:
 
 
 class TestBuildConfigRequest:
+    @pytest.mark.parametrize(
+        ("item", "expected"),
+        [
+            (0, "f00021107716100100000000000011f7"),
+            (36, "f00021107716100100000000480069f7"),
+            (255, "f000211077161001000000007e030ef7"),
+        ],
+    )
+    def test_matches_upstream_reserved_address_field(self, item, expected):
+        # SDK addRequestMessage writes 32 zero bits before the 8-bit item.
+        # Vectors include the footer from the unchanged C++ bit-packing helper.
+        assert build_config_request(22, item) == bytes.fromhex(expected)
+
     def test_valid_sysex(self):
         packet = build_config_request(0, 10)
         assert _valid_sysex(packet)
