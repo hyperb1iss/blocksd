@@ -70,7 +70,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
 
   github-release:
-    uses: hyperb1iss/shared-workflows/.github/workflows/github-release.yml@9edda2222785fe0351a26a07bf26a3385874d288 # v1
+    uses: hyperb1iss/shared-workflows/.github/workflows/github-release.yml@c89b2d2dcedd0fc1841525a9907cda2b7498d116 # v2
     needs: [pypi]
     with:
       attach-artifacts: true
