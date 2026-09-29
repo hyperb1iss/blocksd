@@ -11,7 +11,13 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from blocksd import __version__
-from blocksd.api.events import VALID_EVENTS, EventBroadcaster, _connection_to_dict, _device_to_dict
+from blocksd.api.events import (
+    EVENT_OVERFLOW_MESSAGE,
+    VALID_EVENTS,
+    EventBroadcaster,
+    _connection_to_dict,
+    _device_to_dict,
+)
 from blocksd.api.protocol import PIXEL_DATA_SIZE, decode_json, parse_binary_frame
 from blocksd.device.registry import key_count_for_block, supports_key_led_program
 from blocksd.led.bitmap import Color, LEDGrid
@@ -102,6 +108,8 @@ class ApiCommands:
             return self._handle_topology(msg_id), None
 
         if msg_type == "subscribe":
+            if self._broadcaster.is_closed(event_queue):
+                return {"type": "error", "message": EVENT_OVERFLOW_MESSAGE}, None
             valid_events = {event for event in msg.get("events", []) if event in VALID_EVENTS}
             sub_id = self._broadcaster.subscribe(event_queue, valid_events)
             if current_sub_id is not None:

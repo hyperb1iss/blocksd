@@ -289,7 +289,7 @@ Subscribed events are emitted as NDJSON on the Unix socket or JSON text messages
 }
 ```
 
-Action is one of: `start`, `move`, `end`. `index` identifies one finger for the lifetime of a touch, from `start` through `end`. Positions `x` and `y` and pressure `z` are normalized to 0 to 1. Velocities `vx`, `vy`, and `vz` are signed and range from -1 to 127/128; devices that report touches without velocity send 0. `timestamp` is the device clock in milliseconds, useful for spacing events within a burst but not comparable across devices.
+Action is one of: `start`, `move`, `end`. `index` identifies one finger for the lifetime of a touch, from `start` through `end`. Positions `x` and `y` and pressure `z` are normalized to 0 to 1. Velocities `vx`, `vy`, and `vz` are signed, range from -1 to 127/128, and like positions are rounded to four decimals; devices that report touches without velocity send 0. `timestamp` is the device clock in milliseconds, useful for spacing events within a burst but not comparable across devices.
 
 ### Button Events
 
@@ -314,7 +314,7 @@ Action is one of: `press`, `release`. `button_id` is the protocol button index. 
 
 ### Backpressure
 
-Each subscriber has a bounded event queue. If a client stops consuming events and the queue fills, the daemon drops that subscriber rather than blocking the server. Keep event consumers draining continuously.
+Each subscriber has a bounded event queue of 1024 events. If a client stops consuming events and its queue fills, the daemon discards the queued events and stops queueing new ones for that connection rather than blocking the server. Once the connection's pending writes reach the client, the daemon sends `{"type": "error", "message": "event queue overflowed; reconnect and subscribe again"}` and closes the connection (WebSocket close status 1008). A `subscribe` sent on that connection before it closes is refused and may return the same error. After the close, reconnect, subscribe again, and send `discover` to rebuild device state; touches that started before the overflow may never report `end`.
 
 ## Failure Semantics
 

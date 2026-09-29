@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import weakref
 from typing import TYPE_CHECKING, Any
 
 from blocksd.device.registry import bitmap_grid_dimensions, key_count_for_block
@@ -23,6 +24,8 @@ log = logging.getLogger(__name__)
 # Supported event categories
 VALID_EVENTS = frozenset({"device", "touch", "button", "config", "topology"})
 
+EVENT_OVERFLOW_MESSAGE = "event queue overflowed; reconnect and subscribe again"
+
 
 class EventBroadcaster:
     """Manages client subscriptions and broadcasts events."""
@@ -30,6 +33,13 @@ class EventBroadcaster:
     def __init__(self) -> None:
         self._subscribers: dict[int, _Subscriber] = {}
         self._next_id = 0
+        # Queues shut down after overflow. Their connections are closing and
+        # must not subscribe again.
+        self._closed: weakref.WeakSet[asyncio.Queue[dict[str, Any]]] = weakref.WeakSet()
+
+    def is_closed(self, queue: asyncio.Queue[dict[str, Any]]) -> bool:
+        """Whether this queue was shut down after overflowing."""
+        return queue in self._closed
 
     def subscribe(self, queue: asyncio.Queue[dict[str, Any]], events: set[str]) -> int:
         """Register a client for event types. Returns subscription ID."""
@@ -117,18 +127,26 @@ class EventBroadcaster:
         self._broadcast("config", msg)
 
     def _broadcast(self, category: str, msg: dict[str, Any]) -> None:
-        """Send message to all subscribers of the given category."""
+        """Send message to all subscribers of the given category.
+
+        A subscriber whose queue is full has already lost events, so its
+        queue is shut down. The transport's event writer then closes that
+        connection, which tells the client to reconnect and resynchronize
+        instead of silently receiving nothing.
+        """
         dead: list[int] = []
         for sub_id, sub in self._subscribers.items():
             if category in sub.events:
                 try:
                     sub.queue.put_nowait(msg)
-                except asyncio.QueueFull:
+                except (asyncio.QueueFull, asyncio.QueueShutDown):
                     dead.append(sub_id)
-                    log.debug("Client %d queue full, dropping", sub_id)
+                    log.warning("Event subscriber %d fell behind; closing its connection", sub_id)
 
         for sub_id in dead:
-            self._subscribers.pop(sub_id, None)
+            if sub := self._subscribers.pop(sub_id, None):
+                self._closed.add(sub.queue)
+                sub.queue.shutdown(immediate=True)
 
     @property
     def subscriber_count(self) -> int:

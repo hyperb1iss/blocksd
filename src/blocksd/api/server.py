@@ -13,11 +13,13 @@ import json
 import logging
 import os
 import stat
+import struct
 import sys
 import time
 from typing import TYPE_CHECKING, Any
 
 from blocksd.api.commands import ApiCommands
+from blocksd.api.events import EVENT_OVERFLOW_MESSAGE
 from blocksd.api.http import http_response, parse_request, serve_static, ws_upgrade_response
 from blocksd.api.protocol import (
     BINARY_FRAME_SIZE,
@@ -35,6 +37,10 @@ if TYPE_CHECKING:
     from blocksd.topology.manager import TopologyManager
 
 log = logging.getLogger(__name__)
+
+_OVERFLOW_ERROR = {"type": "error", "message": EVENT_OVERFLOW_MESSAGE}
+# RFC 6455 status 1008 (policy violation), followed by a UTF-8 reason.
+_WS_OVERFLOW_CLOSE = struct.pack("!H", 1008) + b"event queue overflowed"
 
 
 class _ApiTransport(ApiCommands):
@@ -242,6 +248,9 @@ class ApiServer(_ApiTransport):
                 event = await queue.get()
                 writer.write(encode_json(event))
                 await writer.drain()
+        except asyncio.QueueShutDown:
+            writer.write(encode_json(_OVERFLOW_ERROR))
+            writer.close()
         except (ConnectionResetError, BrokenPipeError, asyncio.CancelledError):
             pass
 
@@ -390,5 +399,9 @@ class WebServer(_ApiTransport):
                 event = await queue.get()
                 self._ws_send(writer, event)
                 await writer.drain()
+        except asyncio.QueueShutDown:
+            self._ws_send(writer, _OVERFLOW_ERROR)
+            writer.write(build_frame(WSOpcode.CLOSE, _WS_OVERFLOW_CLOSE))
+            writer.close()
         except (ConnectionResetError, BrokenPipeError, asyncio.CancelledError):
             pass

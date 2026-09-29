@@ -179,9 +179,38 @@ class TestEventBroadcaster:
         broadcaster.broadcast_device_added(dev)
         assert broadcaster.subscriber_count == 1
 
-        # Second message overflows — subscriber gets dropped
+        # Second message overflows: the subscriber is dropped and its queue shut
+        # down so the transport can close the connection.
         broadcaster.broadcast_device_added(dev)
         assert broadcaster.subscriber_count == 0
+        with pytest.raises(asyncio.QueueShutDown):
+            queue.get_nowait()
+
+    def test_overflow_leaves_other_subscribers_live(self, broadcaster: EventBroadcaster) -> None:
+        slow: asyncio.Queue[dict] = asyncio.Queue(maxsize=1)
+        healthy: asyncio.Queue[dict] = asyncio.Queue()
+        broadcaster.subscribe(slow, {"device"})
+        broadcaster.subscribe(healthy, {"device"})
+
+        dev = DeviceInfo(uid=1, topology_index=0, serial="LPB000", block_type=BlockType.LIGHTPAD)
+        for _ in range(3):
+            broadcaster.broadcast_device_added(dev)
+
+        assert broadcaster.subscriber_count == 1
+        assert healthy.qsize() == 3
+
+    def test_shut_down_queue_never_raises_into_device_callbacks(
+        self, broadcaster: EventBroadcaster
+    ) -> None:
+        """Broadcasts run inside device callbacks, so they must not raise."""
+        queue: asyncio.Queue[dict] = asyncio.Queue()
+        queue.shutdown()
+        broadcaster.subscribe(queue, {"button"})
+
+        broadcaster.broadcast_button(ButtonEvent(uid=1, timestamp=0, button_id=0, is_down=True))
+
+        assert broadcaster.subscriber_count == 0
+        assert broadcaster.is_closed(queue)
 
 
 class TestDeviceSerialization:
