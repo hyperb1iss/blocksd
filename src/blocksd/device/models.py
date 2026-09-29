@@ -120,6 +120,7 @@ class ButtonEvent:
     timestamp: int
     button_id: int
     is_down: bool
+    function: str | None = None  # SDK button function, e.g. "mode"
 
 
 @dataclass(frozen=True, slots=True)

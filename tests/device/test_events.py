@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from blocksd.device.models import ButtonEvent, ConfigValue, TouchEvent
+from blocksd.device.models import BlockType, ButtonEvent, ConfigValue, TouchEvent
+from blocksd.device.registry import button_function
 
 
 class TestTouchEvent:
@@ -71,6 +72,32 @@ class TestButtonEvent:
         event = ButtonEvent(uid=1, timestamp=0, button_id=0, is_down=False)
         with pytest.raises(AttributeError):
             event.__setattr__("is_down", True)
+
+
+class TestButtonFunction:
+    @pytest.mark.parametrize(
+        ("block_type", "button_id", "expected"),
+        [
+            (BlockType.LUMI_KEYS, 0, "mode"),
+            (BlockType.LUMI_KEYS, 1, "down"),
+            (BlockType.LUMI_KEYS, 2, "up"),
+            (BlockType.LIGHTPAD_M, 0, "mode"),
+            (BlockType.LOOP, 5, "play_or_pause"),
+            (BlockType.DEV_CTRL, 7, "button7"),
+            (BlockType.TOUCH, 9, "up"),
+        ],
+    )
+    def test_matches_sdk_button_order(
+        self, block_type: BlockType, button_id: int, expected: str
+    ) -> None:
+        assert button_function(block_type, button_id) == expected
+
+    @pytest.mark.parametrize(
+        ("block_type", "button_id"),
+        [(BlockType.LUMI_KEYS, 3), (BlockType.LUMI_KEYS, -1), (BlockType.UNKNOWN, 0)],
+    )
+    def test_unknown_ids_have_no_function(self, block_type: BlockType, button_id: int) -> None:
+        assert button_function(block_type, button_id) is None
 
 
 class TestConfigValue:

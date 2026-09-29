@@ -85,7 +85,7 @@ class TestEventBroadcaster:
 
         event = TouchEvent(
             uid=42,
-            timestamp=0,
+            timestamp=1234,
             touch_index=0,
             x=0.5,
             y=0.75,
@@ -100,6 +100,7 @@ class TestEventBroadcaster:
         assert msg["x"] == 0.5
         assert msg["y"] == 0.75
         assert msg["z"] == 0.8
+        assert msg["timestamp"] == 1234
 
     def test_touch_end_action(self, broadcaster: EventBroadcaster) -> None:
         queue: asyncio.Queue[dict] = asyncio.Queue()
@@ -125,12 +126,17 @@ class TestEventBroadcaster:
         queue: asyncio.Queue[dict] = asyncio.Queue()
         broadcaster.subscribe(queue, {"button"})
 
-        event = ButtonEvent(uid=42, timestamp=0, button_id=0, is_down=True)
+        event = ButtonEvent(uid=42, timestamp=900, button_id=1, is_down=True, function="down")
         broadcaster.broadcast_button(event)
 
-        msg = queue.get_nowait()
-        assert msg["type"] == "button"
-        assert msg["action"] == "press"
+        assert queue.get_nowait() == {
+            "type": "button",
+            "uid": 42,
+            "action": "press",
+            "button_id": 1,
+            "button": "down",
+            "timestamp": 900,
+        }
 
     def test_button_release(self, broadcaster: EventBroadcaster) -> None:
         queue: asyncio.Queue[dict] = asyncio.Queue()
