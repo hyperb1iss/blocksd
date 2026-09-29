@@ -24,6 +24,7 @@ from blocksd.device.models import (
 )
 from blocksd.device.registry import (
     block_type_from_serial,
+    button_function,
     heap_size_for_block,
     supports_bitmap_led_program,
     supports_key_led_program,
@@ -570,7 +571,14 @@ class DeviceGroup:
         uid = self._uid_from_index(device_index)
         if uid:
             self._update_api_ping(uid)
-            event = ButtonEvent(uid=uid, timestamp=timestamp, button_id=button_id, is_down=is_down)
+            dev = self._devices.get(uid)
+            event = ButtonEvent(
+                uid=uid,
+                timestamp=timestamp,
+                button_id=button_id,
+                is_down=is_down,
+                function=button_function(dev.block_type, button_id) if dev else None,
+            )
             for cb in self.on_button_event:
                 cb(event)
 

@@ -75,6 +75,7 @@ class EventBroadcaster:
             "uid": event.uid,
             "action": action,
             "index": event.touch_index,
+            "timestamp": event.timestamp,
             "x": round(event.x, 4),
             "y": round(event.y, 4),
             "z": round(event.z, 4),
@@ -90,6 +91,9 @@ class EventBroadcaster:
             "type": "button",
             "uid": event.uid,
             "action": "press" if event.is_down else "release",
+            "button_id": event.button_id,
+            "button": event.function,
+            "timestamp": event.timestamp,
         }
         self._broadcast("button", msg)
 

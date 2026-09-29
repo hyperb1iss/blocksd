@@ -279,6 +279,7 @@ Subscribed events are emitted as NDJSON on the Unix socket or JSON text messages
   "uid": 42,
   "action": "start",
   "index": 0,
+  "timestamp": 183204,
   "x": 0.5,
   "y": 0.75,
   "z": 0.8,
@@ -288,15 +289,22 @@ Subscribed events are emitted as NDJSON on the Unix socket or JSON text messages
 }
 ```
 
-Action is one of: `start`, `move`, `end`.
+Action is one of: `start`, `move`, `end`. `index` identifies one finger for the lifetime of a touch, from `start` through `end`. Positions `x` and `y` and pressure `z` are normalized to 0 to 1. Velocities `vx`, `vy`, and `vz` are signed and range from -1 to 127/128; devices that report touches without velocity send 0. `timestamp` is the device clock in milliseconds, useful for spacing events within a burst but not comparable across devices.
 
 ### Button Events
 
 ```json
-{ "type": "button", "uid": 42, "action": "press" }
+{
+  "type": "button",
+  "uid": 42,
+  "action": "press",
+  "button_id": 2,
+  "button": "up",
+  "timestamp": 183910
+}
 ```
 
-Action is one of: `press`, `release`. The current API does not expose the protocol button ID.
+Action is one of: `press`, `release`. `button_id` is the protocol button index. `button` is its ROLI SDK function in snake case, such as `mode`, `down`, `up`, or `play_or_pause`, and is `null` when the device type does not define that index. LUMI Keys report `mode`, `down`, and `up`; Lightpad and Seaboard Blocks report `mode`. `timestamp` uses the same device clock as touch events.
 
 ### Configuration Events
 
