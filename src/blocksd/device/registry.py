@@ -74,3 +74,55 @@ def key_count_for_block(block_type: BlockType) -> int:
 
 def supports_key_led_program(block_type: BlockType) -> bool:
     return key_count_for_block(block_type) > 0
+
+
+_CONTROL_NAV = ("down", "up")
+
+# Button functions in protocol ID order, from the SDK's BlockDataSheet.
+# Firmware reports a button by its index into this list.
+_BUTTON_FUNCTIONS: dict[BlockType, tuple[str, ...]] = {
+    BlockType.LIGHTPAD: ("mode",),
+    BlockType.LIGHTPAD_M: ("mode",),
+    BlockType.SEABOARD: ("mode",),
+    BlockType.LUMI_KEYS: ("mode", "down", "up"),
+    BlockType.LOOP: (
+        "mode",
+        "volume",
+        "click",
+        "snap",
+        "back",
+        "play_or_pause",
+        "record",
+        "learn",
+        *_CONTROL_NAV,
+    ),
+    BlockType.LIVE: (
+        "mode",
+        "volume",
+        "scale",
+        "chord",
+        "arp",
+        "sustain",
+        "octave",
+        "love",
+        *_CONTROL_NAV,
+    ),
+    BlockType.DEV_CTRL: tuple(f"button{i}" for i in range(8)) + _CONTROL_NAV,
+    BlockType.TOUCH: (
+        "velocity_sensitivity",
+        "glide_sensitivity",
+        "slide_sensitivity",
+        "press_sensitivity",
+        "lift_sensitivity",
+        "fixed_velocity",
+        "glide_lock",
+        "piano_mode",
+        *_CONTROL_NAV,
+    ),
+}
+
+
+def button_function(block_type: BlockType, button_id: int) -> str | None:
+    """Return the SDK function name for a protocol button ID, if known."""
+    functions = _BUTTON_FUNCTIONS.get(block_type, ())
+    return functions[button_id] if 0 <= button_id < len(functions) else None

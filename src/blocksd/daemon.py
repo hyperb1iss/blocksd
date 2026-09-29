@@ -158,7 +158,8 @@ def _on_touch(event: TouchEvent) -> None:
 
 def _on_button(event: ButtonEvent) -> None:
     log.debug(
-        "🔘 Button %d %s",
+        "🔘 Button %d (%s) %s",
         event.button_id,
+        event.function or "unknown",
         "down" if event.is_down else "up",
     )

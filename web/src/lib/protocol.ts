@@ -78,6 +78,8 @@ export interface TouchEvent {
   uid: number;
   action: TouchData['action'];
   index: number;
+  /** Device clock in milliseconds. */
+  timestamp: number;
   x: number;
   y: number;
   z: number;

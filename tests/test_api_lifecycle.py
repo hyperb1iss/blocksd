@@ -248,3 +248,94 @@ async def test_transport_keeps_connection_after_compatibility_requests(
         writer.close()
         await writer.wait_closed()
         await server.stop()
+
+
+@pytest.mark.parametrize("transport", ["unix", "tcp"])
+async def test_overflowed_subscriber_is_disconnected(socket_dir, transport):
+    """A client that fell behind learns so by losing its connection."""
+    from blocksd.api.websocket import WSOpcode, read_frame
+    from blocksd.device.models import TouchEvent
+    from tests.test_web_server import _build_masked_frame
+
+    manager = TopologyManager()
+    if transport == "unix":
+        server = ApiServer(manager, socket_dir / "events.sock")
+        await server.start()
+        reader, writer = await asyncio.open_unix_connection(str(socket_dir / "events.sock"))
+    else:
+        server = WebServer(manager, port=0)
+        await server.start()
+        assert server._server is not None
+        port = server._server.sockets[0].getsockname()[1]
+        reader, writer = await asyncio.open_connection("127.0.0.1", port)
+        writer.write(
+            b"GET /ws HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\n"
+            b"Connection: Upgrade\r\nSec-WebSocket-Version: 13\r\n"
+            b"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"
+        )
+        await writer.drain()
+        assert b"101" in await reader.readuntil(b"\r\n\r\n")
+
+    async def receive() -> dict | None:
+        if transport == "unix":
+            line = await reader.readline()
+            return json.loads(line) if line else None
+        frame = await read_frame(reader)
+        if frame is None:
+            return None
+        if frame[0] == WSOpcode.CLOSE:
+            assert frame[1][:2] == (1008).to_bytes(2, "big")
+            return None
+        return json.loads(frame[1])
+
+    try:
+        async with asyncio.timeout(2):
+            payload = json.dumps({"type": "subscribe", "events": ["touch"]}).encode()
+            writer.write(
+                payload + b"\n" if transport == "unix" else _build_masked_frame(1, payload)
+            )
+            await writer.drain()
+            subscribed = await receive()
+            assert subscribed is not None
+            assert subscribed["type"] == "subscribed"
+
+            # Broadcast without yielding so the event writer cannot drain.
+            touch = TouchEvent(uid=1, timestamp=0, touch_index=0, x=0, y=0, z=0)
+            for _ in range(1025):
+                server._broadcaster.broadcast_touch(touch)
+
+            error = await receive()
+            assert error is not None
+            assert error["type"] == "error"
+            assert "overflowed" in error["message"]
+            assert await receive() is None
+            assert server._broadcaster.subscriber_count == 0
+    finally:
+        writer.close()
+        await writer.wait_closed()
+        await server.stop()
+
+
+async def test_overflowed_queue_cannot_subscribe_again():
+    """A client that re-subscribes before its close lands stays unsubscribed."""
+    server = ApiServer(TopologyManager(), Path("/unused.sock"))
+    queue: asyncio.Queue = asyncio.Queue(maxsize=1)
+    _, sub_id = server._handle_json(b'{"type":"subscribe","events":["button"]}', queue, None)
+    assert sub_id is not None
+
+    from blocksd.device.models import ButtonEvent
+
+    press = ButtonEvent(uid=1, timestamp=0, button_id=0, is_down=True)
+    server._broadcaster.broadcast_button(press)
+    server._broadcaster.broadcast_button(press)
+
+    response, new_sub = server._handle_json(
+        b'{"type":"subscribe","events":["button"]}', queue, sub_id
+    )
+    assert response == {
+        "type": "error",
+        "message": "event queue overflowed; reconnect and subscribe again",
+    }
+    assert new_sub is None
+    assert server._broadcaster.subscriber_count == 0
+    server._broadcaster.broadcast_button(press)
