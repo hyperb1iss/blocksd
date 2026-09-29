@@ -38,7 +38,7 @@ Key lighting requires LUMI firmware 1.3.0 or newer. Other recognized Blocks can 
 
 ## Touch and Button Events
 
-The decoder handles Blocks touch and button messages when a device emits them. Touch coordinates and pressure are normalized; velocity is signed. The API exposes touch position, pressure, velocity, and contact index, plus button press/release actions. The protocol button ID is not currently included in the API event. Ordinary MIDI notes and MPE events are not translated into touch events by this API.
+The decoder handles Blocks touch and button messages when a device emits them. Touch coordinates and pressure are normalized; velocity is signed. The API exposes touch position, pressure, velocity, contact index, and device timestamp, plus button press/release actions with the protocol button ID and its ROLI SDK function name. Ordinary MIDI notes and MPE events are not translated into touch events by this API.
 
 ## DNA Mesh Networking
 
