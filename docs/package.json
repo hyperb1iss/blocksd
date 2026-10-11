@@ -12,8 +12,8 @@
     "format": "pnpm lint:fix"
   },
   "devDependencies": {
-    "mermaid": "^11.17.2",
-    "prettier": "^3.9.6",
+    "mermaid": "^12.1.0",
+    "prettier": "^3.9.9",
     "vitepress": "2.0.0-alpha.20"
   },
   "packageManager": "pnpm@12.3.4",
