@@ -41,7 +41,7 @@ just build-check        # build and verify the installed distribution
 Stop any installed blocksd service before starting a development daemon. Run the daemon in a separate terminal for dashboard development:
 
 ```bash
-uv run --locked blocksd ui --no-browser
+uv run --locked blocksd run
 ```
 
 The live daemon controls connected hardware. The Python test suite uses simulated transports and does not need physical ROLI devices. A passing suite does not establish device compatibility or LED timing on hardware.
@@ -50,7 +50,7 @@ The source of truth for Python tool versions is `uv.lock`, including the local R
 
 Use `just fix` for Python lint fixes and formatting, `pnpm --dir web format` for the dashboard, and `just fmt-docs` for documentation. Formatting is explicit; normal checks do not rewrite source.
 
-The LED and config CLI commands currently open their own MIDI sessions. The daemon skips LittleFoot renderer upload, so tests of frame acceptance do not establish visible LED output. Timing fields in DaemonConfig are parsed but not forwarded to the topology runtime. Keep documentation and release notes explicit about these limitations.
+The status, LED, config, and UI commands connect to the running daemon. LED frame acceptance does not establish visible output; configuration writes require device readback before the CLI reports confirmation. Timing fields in DaemonConfig are parsed but not forwarded to the topology runtime. Keep documentation and release notes explicit about these limitations.
 
 ## Architecture
 

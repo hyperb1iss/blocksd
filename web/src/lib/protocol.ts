@@ -1,4 +1,4 @@
-import type { ConfigValue, Device, DeviceConnection, TouchData } from './types';
+import type { ConfigMetadata, ConfigValue, Device, DeviceConnection, TouchData } from './types';
 
 // ── Requests ────────────────────────────────────────────────────────────
 
@@ -38,6 +38,8 @@ export interface TopologyResponse {
 export interface ConfigValuesResponse {
   type: 'config_values';
   uid: number;
+  serial?: string;
+  schema?: ConfigMetadata[];
   values: ConfigValue[];
   id?: string;
 }
@@ -45,6 +47,9 @@ export interface ConfigValuesResponse {
 export interface ConfigAckResponse {
   type: 'config_ack';
   uid: number;
+  serial?: string;
+  status?: 'pending' | 'error';
+  message?: string;
   item: number;
   ok: boolean;
   id?: string;
@@ -68,7 +73,12 @@ export interface TopologyChangedEvent {
 
 export interface ConfigChangedEvent {
   type: 'config_changed';
+  schema?: ConfigMetadata;
   uid: number;
+  serial?: string;
+  min?: number;
+  max?: number;
+  writable?: boolean;
   item: number;
   value: number;
 }
@@ -98,4 +108,4 @@ export type ServerMessage =
   | ConfigChangedEvent
   | TouchEvent
   | { type: 'subscribed'; events: string[] }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string; id?: string };

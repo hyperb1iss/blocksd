@@ -1,0 +1,225 @@
+.settings-panel {
+  padding: 26px;
+  min-width: 0;
+}
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+.section-heading h2 {
+  margin: 7px 0 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+.settings-intro {
+  color: var(--color-muted);
+  font-size: 10px;
+  line-height: 1.8;
+  max-width: 350px;
+  margin: 14px 0 19px;
+}
+.button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  min-height: 40px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+.button.primary {
+  background: var(--color-cyan);
+  color: #10201b;
+}
+.button.primary:hover:not(:disabled) {
+  background: #b3fff2;
+}
+.button.secondary {
+  border-color: #514160;
+  background: #21192d;
+  color: #e3d9ed;
+}
+.button.secondary:hover:not(:disabled) {
+  border-color: var(--color-cyan);
+}
+.button.subtle {
+  background: transparent;
+  color: var(--color-muted);
+  padding: 7px 0 7px 8px;
+  min-height: 36px;
+  font-size: 10px;
+}
+.button.subtle:hover:not(:disabled) {
+  color: var(--color-cyan);
+}
+.setting-filters {
+  margin: 0;
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: 0;
+  border: 0;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-bottom: 17px;
+  border-bottom: 1px solid var(--border);
+}
+.setting-filters button {
+  padding: 7px 9px;
+  color: #b5a8c4;
+  background: #1c1527;
+  border: 1px solid #382c45;
+  border-radius: 4px;
+  font-size: 9px;
+}
+.setting-filters button[aria-pressed="true"] {
+  color: #f0b5ff;
+  background: #351b40;
+  border-color: #7e4291;
+}
+.setting-list {
+  max-height: 465px;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #5d416e transparent;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 17px 0;
+  border-bottom: 1px solid #2b2235;
+}
+.setting-row:last-child {
+  border-bottom: 0;
+}
+.setting-description {
+  min-width: 0;
+}
+.setting-description label {
+  display: block;
+  font-size: 12px;
+  font-weight: 550;
+}
+.setting-description p {
+  font-size: 9px;
+  line-height: 1.6;
+  color: var(--color-muted);
+  max-width: 230px;
+  margin: 5px 0 0;
+}
+.write-state {
+  color: var(--color-muted);
+  display: block;
+  font-size: 9px;
+  margin-top: 6px;
+  line-height: 1.6;
+}
+.write-state.pending {
+  color: var(--color-yellow);
+}
+.write-state.confirmed {
+  color: var(--color-cyan);
+}
+.write-state.error {
+  color: #ff9595;
+}
+.number-control {
+  display: flex;
+  align-items: center;
+  border: 1px solid #4b3b59;
+  border-radius: 5px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #100c17;
+}
+.number-control input {
+  border: 0;
+  width: 65px;
+  text-align: center;
+  font: 12px var(--font-mono);
+  padding: 9px 3px 9px 7px;
+  background: transparent;
+  min-height: 38px;
+}
+.apply-setting {
+  border: 0;
+  border-left: 1px solid #3c2e49;
+  color: var(--color-cyan);
+  font-size: 10px;
+  min-height: 38px;
+  min-width: 37px;
+  padding: 8px;
+  background: #21182c;
+}
+.apply-setting:hover:not(:disabled) {
+  background: #31213e;
+}
+.readonly-value {
+  color: var(--color-muted);
+  font: 12px var(--font-mono);
+}
+.settings-empty {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.8;
+  gap: 12px;
+}
+.settings-empty h3 {
+  color: var(--color-text);
+  font-size: 16px;
+  margin: 0;
+}
+.loading-line {
+  height: 3px;
+  width: 100px;
+  background: var(--color-cyan);
+  animation: loading 1.4s ease-in-out infinite alternate;
+}
+@keyframes loading {
+  to {
+    opacity: 0.25;
+    width: 45px;
+  }
+}
+.save-preset {
+  margin: 18px 0 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid #493253;
+  background: #211629;
+  border-radius: 7px;
+  padding: 20px 24px;
+}
+.save-preset label {
+  font-weight: 600;
+  font-size: 13px;
+}
+.save-preset p {
+  color: #b5a4c3;
+  font-size: 10px;
+  margin: 6px 0 0;
+}
+.save-preset-fields {
+  display: flex;
+  gap: 9px;
+}
+.save-preset-fields input {
+  width: 185px;
+  font-size: 11px;
+}

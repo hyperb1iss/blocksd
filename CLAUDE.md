@@ -269,7 +269,7 @@ Extracted ROLI Connect installer (`~/Downloads/roli-extracted/`):
 
 Protocol, device, topology, daemon, API, CLI, and dashboard layers are implemented. API transports share validation in `api/commands.py`; each server owns its subscriptions and brightness state. The daemon owns background task shutdown and partial-startup cleanup.
 
-CLI commands live in `cli/app.py`, `cli/led.py`, `cli/config.py`, and `cli/install.py`. LED/config commands open independent MIDI sessions; they are not socket clients. Stop the service before running them.
+CLI commands live in `cli/app.py`, `cli/led.py`, `cli/config.py`, and `cli/install.py`. Device commands use cli/client.py to connect to the running daemon. The ui command opens its reported dashboard URL. Config writes wait for matching device readback; no CLI command except run starts a hardware lifecycle.
 
 LED programs load on the first frame. Wait for complete program ACK, then a matching nonce reply from handleMessage before publishing pixels (firmware initialisation can clear preloaded pixel data). Both renderers disable the status overlay; the LUMI renderer retains default musical handling with setUseDefaultKeyHandler(true, false). Visible RGB patterns were confirmed on Lightpad M 1.1.0 and LUMI 1.3.9; live MIDI/MPE preservation and sustained timing remain unverified. Accepted API frames confirm daemon acceptance, not visible rendering. Config timing fields are not forwarded to the runtime.
 

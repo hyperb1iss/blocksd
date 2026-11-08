@@ -36,16 +36,16 @@ ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter 
 
 ## ✦ Features
 
-| Capability                   | Description                                                                                     |
-| ---------------------------- | ----------------------------------------------------------------------------------------------- |
-| 🔌 **API Mode Keepalive**    | Periodic pings prevent the 5-second device timeout that kills API mode                          |
-| 🏗️ **Topology Management**   | Auto-discovers devices over USB, tracks DNA-connected blocks through master                     |
-| 🎭 **Full State Machine**    | Serial → topology → API activation → ping loop, matching the C++ reference                      |
-| 💡 **LED Control**           | Lightpad RGB565 grids and LUMI per-key colors, with CLI patterns |
-| 👆 **Touch & Button Events** | Normalized touch data (x/y/z/velocity) and button callbacks                                     |
-| ⚙️ **Device Config**         | Read/write device settings (sensitivity, MIDI channel, scale, etc.)                             |
-| 🔊 **DAW Friendly**          | ALSA multi-client, blocksd and your DAW share MIDI without conflict                             |
-| 🛡️ **systemd Integration**   | Type=notify service, watchdog heartbeat, udev rules for plug-and-play                           |
+| Capability                   | Description                                                                 |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| 🔌 **API Mode Keepalive**    | Periodic pings prevent the 5-second device timeout that kills API mode      |
+| 🏗️ **Topology Management**   | Auto-discovers devices over USB, tracks DNA-connected blocks through master |
+| 🎭 **Full State Machine**    | Serial → topology → API activation → ping loop, matching the C++ reference  |
+| 💡 **LED Control**           | Lightpad RGB565 grids and LUMI per-key colors, with CLI patterns            |
+| 👆 **Touch & Button Events** | Normalized touch data (x/y/z/velocity) and button callbacks                 |
+| ⚙️ **Device Config**         | Read/write device settings (sensitivity, MIDI channel, scale, etc.)         |
+| 🔊 **DAW Friendly**          | ALSA multi-client, blocksd and your DAW share MIDI without conflict         |
+| 🛡️ **systemd Integration**   | Type=notify service, watchdog heartbeat, udev rules for plug-and-play       |
 
 ## 📦 Install
 
@@ -132,18 +132,16 @@ INFO  ✨ Device connected: lightpad_block_m (LPMJW6SWHSPD8H92), battery 31%
 ### Device Status
 
 ```bash
-# Quick scan, shows detected MIDI ports
+# Show devices known to the running daemon
 blocksd status
 
-# Full probe, connects to devices, shows type/serial/battery/version
-systemctl --user stop blocksd   # also stop any foreground daemon
+# Include DNA topology details without opening a MIDI session
 blocksd status --probe
-systemctl --user start blocksd
 ```
 
 ### LED Control
 
-The LED and config commands open their own MIDI sessions. Stop the service and any foreground daemon before using them. LED commands remain running until Ctrl+C; config commands probe for about eight seconds. Restart the service afterward.
+The LED and config commands connect to the running daemon. Keep the service running. LED commands submit a frame and exit; configuration writes wait for device readback. Use `--device SERIAL` to select a device when more than one is connected.
 
 Control the 15×15 LED grid on Lightpad Block and Lightpad Block M:
 
@@ -177,14 +175,14 @@ blocksd config set 10 50               # write velocity sensitivity
 
 ### Web Dashboard
 
-If blocksd is already running, open `http://localhost:9010` directly. Use `blocksd ui` only when no daemon is running; the command starts its own daemon.
+Run `blocksd ui` to open the existing daemon's dashboard. Start the service or `blocksd run` first; opening the UI does not create another hardware session.
 
 ```bash
-blocksd ui                             # start a daemon and open its dashboard
-blocksd ui --port 8080                 # custom port
+blocksd ui                             # open the running dashboard
+blocksd ui --no-browser                # print its URL
 ```
 
-Opens a real-time dashboard showing connected devices, topology, battery status, and LED state. Uses WebSocket for live updates.
+The dashboard provides device settings, live touch feedback, and saved presets. Changes stay pending until the device confirms them. Presets can be exported, imported, and selected for reconnect restoration. The DAW handles sound generation.
 
 ### Service Management
 

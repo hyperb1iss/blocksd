@@ -1,47 +1,94 @@
 @import "tailwindcss";
+@import "./layout.css";
+@import "./hardware.css";
+@import "./settings.css";
+@import "./presets.css";
+@import "./responsive.css";
 
 @theme {
-  /* SilkCircuit accent palette */
   --color-purple: #e135ff;
   --color-cyan: #80ffea;
   --color-coral: #ff6ac1;
   --color-yellow: #f1fa8c;
   --color-green: #50fa7b;
   --color-red: #ff6363;
-
-  /* Surface hierarchy */
   --color-void: #0a0812;
   --color-panel: #12101a;
   --color-surface: #1a162a;
   --color-elevated: #221e32;
-
-  /* Text */
-  --color-text: #e0e0e0;
-  --color-muted: #8a8a9a;
-  --color-subtle: #5a5a6a;
-
-  /* Typography */
-  --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", ui-monospace, monospace;
+  --color-text: #f5f2fa;
+  --color-muted: #aaa2ba;
+  --color-subtle: #847992;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
 }
-
+:root {
+  color-scheme: dark;
+  --border: #30293e;
+  --font-ui: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+* {
+  box-sizing: border-box;
+}
 body {
-  background-color: var(--color-panel);
-  color: var(--color-text);
-  font-family: var(--font-mono);
-  -webkit-font-smoothing: antialiased;
-}
-
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
+  margin: 0;
   background: var(--color-panel);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  font-size: 14px;
 }
-::-webkit-scrollbar-thumb {
-  background: var(--color-surface);
-  border-radius: 3px;
+button,
+input,
+select {
+  font: inherit;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-elevated);
+button,
+a,
+input {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  cursor: pointer;
+}
+button:disabled,
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+a {
+  text-decoration: none;
+  color: inherit;
+}
+button,
+a,
+input,
+select,
+summary {
+  outline-offset: 4px;
+}
+:focus-visible {
+  outline: 2px solid var(--color-cyan);
+}
+input,
+select {
+  border: 1px solid #51445f;
+  border-radius: 6px;
+  background: var(--color-void);
+  color: var(--color-text);
+  padding: 11px 12px;
+  min-width: 0;
+}
+input::placeholder {
+  color: #91869f;
+}
+button {
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+::selection {
+  background: #e135ff50;
+  color: white;
 }

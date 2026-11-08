@@ -28,12 +28,11 @@ Installation requires a GUI login session and creates `~/Library/LaunchAgents/te
 
 Use `blocksd install --no-enable` to write the plist without changing the running service. The `--no-service` option skips service setup entirely. macOS ignores `--no-udev`; no device permission rules or sudo are needed. Use the `uv run --locked` prefix for commands in a source checkout.
 
-To stop the service before probing hardware or running standalone LED/config commands:
+Inspect devices and open the dashboard while the service is running:
 
 ```bash
-launchctl bootout "gui/$(id -u)/tech.hyperbliss.blocksd"
 uv run --locked blocksd status --probe
-uv run --locked blocksd install
+uv run --locked blocksd ui
 ```
 
 Open `http://localhost:9010` while the daemon runs. User configuration lives at `~/Library/Application Support/blocksd/config.toml`. The Unix socket is `/tmp/blocksd-<uid>/blocksd.sock` (replace `<uid>` with `id -u`); its parent must be owned by the current user with mode `0700`.
@@ -144,9 +143,9 @@ journalctl --user -u blocksd --no-pager -n 30
 blocksd status
 ```
 
-Open `http://localhost:9010` for the running daemon's dashboard. Do not launch `blocksd ui` alongside the service: that command starts another daemon.
+Run `blocksd ui` to open the running daemon's dashboard at its configured address.
 
-The `status --probe`, `led`, and `config` commands open separate MIDI sessions. Stop the service before using those commands, then restart it afterward.
+The `status --probe`, `led`, and `config` commands use the running daemon. Leave the service running while using them.
 
 ## Linux Native Dependencies
 
@@ -169,5 +168,5 @@ User configuration is retained. For a distribution package, remove the package t
 
 ## Next Steps
 
-- [Quick Start](./quick-start): device discovery and standalone CLI tools
+- [Quick Start](./quick-start): device discovery and daemon-connected CLI tools
 - [LittleFoot status](../architecture/littlefoot): why accepted LED writes do not guarantee visible output

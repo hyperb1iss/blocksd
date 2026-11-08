@@ -241,6 +241,36 @@ Read cached configuration values for a device or request a setting change:
 
 The values and ranges above are illustrative; use the device's reported ranges. A successful set response confirms dispatch, not persistence. Subscribe to `config` for subsequent `config_changed` events.
 
+### Device configuration metadata
+
+Browser clients should target configuration requests with `serial` instead of a numeric `uid`. Device UIDs can exceed JavaScript's exact integer range. Existing integer UID clients remain supported.
+
+```json
+{ "type": "config_get", "serial": "LKB1234567890AB", "id": "settings" }
+```
+
+The `config_values` response includes `serial`, `values`, and `schema`. Each value includes `item`, `value`, `min`, `max`, and `writable`. Schema entries describe `item`, `key`, `label`, `group`, `kind`, and verified `options` where available. Unknown settings retain a numeric label. Do not enable writes without a device-reported range.
+
+A `config_ack` reports `status: "pending"` when dispatch succeeds and `status: "error"` otherwise. Subscribe to `config` before writing and wait for a matching `config_changed` event to establish readback. Config events also include serial, range, and writable state. Acknowledgement is not a guarantee of device-side persistence.
+
+### Saved presets
+
+The daemon owns a preset store shared by Unix and WebSocket clients. Include an `id` to correlate requests and responses.
+
+| Request type    | Fields                                    | Response type                                                     |
+| --------------- | ----------------------------------------- | ----------------------------------------------------------------- |
+| `preset_list`   | optional `serial`                         | `preset_list`, with `presets`                                     |
+| `preset_save`   | `serial`, `name`, optional `auto_restore` | `preset_saved`, with `preset` and `skipped_items`                 |
+| `preset_apply`  | `serial`, `preset_id`                     | `preset_applied`, with `status: "pending"` and requested `values` |
+| `preset_update` | `preset_id`, `auto_restore`               | `preset_saved`, with `preset`                                     |
+| `preset_export` | `preset_id`                               | `preset_export`, with `preset`                                    |
+| `preset_import` | `preset`                                  | `preset_saved`, with a new `preset`                               |
+| `preset_delete` | `preset_id`                               | `preset_deleted`                                                  |
+
+A preset contains `id`, `name`, `serial`, `block_type`, `values` (an array of `{item, value}`), and `auto_restore`. Save captures writable device-reported values and returns excluded setting IDs in `skipped_items`. Apply requires the matching serial and family, validates all ranges before sending, and relies on config events for confirmation. Partial send failures return an error describing the settings already sent. Import validates the complete payload, generates a new ID, and disables auto-restore.
+
+Browser WebSocket upgrades reject cross-origin requests. Native clients may omit Origin. Keep the default loopback binding unless access is controlled separately; origin validation does not authenticate network clients.
+
 ### `topology`
 
 Send `{ "type": "topology" }` to receive `topology_response` with `devices` and `connections` arrays. Each connection contains `device1_uid`, `device2_uid`, `port1`, and `port2`. Subscribe to `topology` for `topology_changed` events with the same arrays.

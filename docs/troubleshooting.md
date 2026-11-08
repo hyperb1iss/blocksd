@@ -59,7 +59,7 @@ Common causes:
 
 **Check renderer startup.** The first frame uploads a renderer, then waits for complete code acknowledgement and a matching execution challenge reply before sending pixels. An accepted API frame can still be queued during startup. Check verbose logs for renderer initialisation or device errors, and see [LittleFoot status](./architecture/littlefoot) for tested firmware.
 
-The LED CLI opens its own MIDI session and stays running until Ctrl+C. Stop the service before using it; API clients should instead connect to the running daemon.
+The LED CLI sends frames through the running daemon and exits. Check `blocksd status` before sending a frame.
 
 **Use the matching lighting surface.** Lightpad Block and Lightpad Block M accept bitmap frames. LUMI Keys uses `blocksd led keys` or JSON `key_frame` and requires firmware 1.3.0 or newer.
 
@@ -84,7 +84,7 @@ API acceptance measures queuing, so successful frame replies alone do not rule o
 The daemon should idle near 0% CPU when devices are connected and stable. High CPU usually means:
 
 - **Rapid reconnect loop**: a device is repeatedly connecting and disconnecting. Check `blocksd run -v` for rapid serial request cycles. This can happen with a damaged USB cable.
-- **Concurrent hardware sessions**: the LED/config CLI and `status --probe` create their own MIDI sessions. Run them with the service stopped. The TOML timing fields currently have no runtime effect.
+- **Concurrent hardware sessions**: run only one daemon. The LED/config CLI, `status --probe`, and `ui` connect to that daemon. The TOML timing fields currently have no runtime effect.
 
 ## Device Disconnects After 5 Seconds
 
@@ -135,20 +135,15 @@ blocksd install
 
 ## Web Dashboard Won't Open
 
-**Symptom**: `blocksd ui` starts but the browser shows a connection error.
-
-**Check if the port is in use**:
+The `ui` command connects to the daemon and opens its reported address. If it cannot connect, start the service and check its logs:
 
 ```bash
-ss -tlnp | grep 9010
+systemctl --user start blocksd
+journalctl --user -u blocksd --no-pager -n 30
+blocksd ui --no-browser
 ```
 
-If the service is already running, open `http://localhost:9010` directly. To use `ui`, stop the service first; changing only the HTTP port does not give the second daemon a separate Unix socket:
-
-```bash
-systemctl --user stop blocksd
-blocksd ui --port 8080
-```
+For a custom socket, pass `blocksd --socket /path/to/blocksd.sock ui`. If the daemon reports no dashboard, enable `web_enabled` in its configuration and restart the service.
 
 **Check firewall**: if accessing from another machine, ensure the port is open. By default, the web server only binds to `127.0.0.1` (localhost).
 
