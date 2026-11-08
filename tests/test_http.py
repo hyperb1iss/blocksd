@@ -119,3 +119,48 @@ class TestHttpRequest:
     def test_non_ws_request(self) -> None:
         req = HttpRequest("GET", "/", {"host": "localhost"})
         assert not req.is_websocket_upgrade
+
+
+@pytest.mark.parametrize(
+    ("origin", "host", "allowed"),
+    [
+        ("http://localhost:9010", "localhost:9010", True),
+        ("http://127.0.0.1:9010", "127.0.0.1:9010", True),
+        ("http://[::1]:9010", "[::1]:9010", True),
+        ("http://localhost:5173", "localhost:5173", True),
+        ("https://untrusted.example", "localhost:9010", False),
+        ("null", "localhost:9010", False),
+        ("http://localhost:9011", "localhost:9010", False),
+        ("http://rebound.example:9010", "rebound.example:9010", False),
+        ("http://user@localhost:9010", "user@localhost:9010", False),
+        (None, "localhost:9010", True),
+    ],
+)
+def test_browser_origin(origin, host, allowed):
+    from blocksd.api.http import websocket_origin_allowed
+
+    headers = {"host": host}
+    if origin is not None:
+        headers["origin"] = origin
+    assert websocket_origin_allowed(HttpRequest("GET", "/ws", headers), "127.0.0.1") is allowed
+
+
+@pytest.mark.parametrize(
+    ("bound_host", "host", "allowed"),
+    [
+        ("127.0.1.1", "rebound.example:9010", False),
+        ("127.0.1.1", "127.0.1.1:9010", True),
+        ("0.0.0.0", "rebound.example:9010", False),  # noqa: S104 - no socket is bound
+        ("::", "rebound.example:9010", False),
+        ("192.168.1.10", "rebound.example:9010", False),
+        ("0.0.0.0", "192.168.1.10:9010", True),  # noqa: S104 - no socket is bound
+        ("::", "[fe80::1]:9010", True),
+        ("studio.local", "studio.local:9010", True),
+        ("studio.local", "rebound.example:9010", False),
+    ],
+)
+def test_browser_origin_with_custom_bindings(bound_host, host, allowed):
+    from blocksd.api.http import websocket_origin_allowed
+
+    request = HttpRequest("GET", "/ws", {"host": host, "origin": f"http://{host}"})
+    assert websocket_origin_allowed(request, bound_host) is allowed

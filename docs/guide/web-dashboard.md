@@ -1,43 +1,45 @@
-# Web Dashboard
+# Controller Dashboard
 
-blocksd ships with a real-time web dashboard built on React 19. It shows everything happening with your devices: topology, battery, connections, LED state, live touch events, all updating over WebSocket without page refreshes.
+The dashboard configures your ROLI hardware and saves setups for the next session. Your DAW or synthesizer handles sound generation.
 
-## Launching
+## Open the dashboard
+
+Start the service or run `blocksd run`, then open the existing dashboard:
 
 ```bash
-blocksd ui                       # start on default port 9010
-blocksd ui --port 8080           # custom port
+blocksd ui
+blocksd ui --no-browser          # print the daemon's dashboard URL
 ```
 
-This starts the daemon with the web server and opens your browser to the dashboard. The web UI communicates with blocksd over WebSocket for live updates.
+The default address is `http://localhost:9010`. The `ui` command connects to the running daemon; it does not start another MIDI session. Set `web_host` and `web_port` in the daemon configuration to change the address.
 
-The web server is enabled by default (`web_enabled = true` under `[daemon]` in the config file). If the systemd service or a foreground daemon is already running, open `http://localhost:9010` directly. The `ui` command starts another daemon; it does not attach to the existing service.
+## Devices
 
-## Dashboard Features
+Select a connected device to see its battery, firmware, supported settings, and surface illustration. Lightpad touch events appear on the surface preview when the device sends them. The illustration is not an LED readback or a musical MIDI monitor.
 
-The dashboard shows a live view of your connected devices:
+Settings come from the daemon's shared metadata and device-reported ranges. MIDI modes use selectors, boolean settings use switches, and numeric settings use explicit value entry. An unavailable range leaves a setting read-only. The dashboard does not guess which settings a device program supports.
 
-- **Device list**: all connected blocks with type, serial, and connection status
-- **Battery monitoring**: current charge level and charging state for each device
-- **Topology view**: how devices are connected through DNA mesh networking
-- **LED state**: current LED grid contents for Lightpad devices
+After changing a setting, wait for device confirmation. A successful send remains pending until the device reports the requested value. A disconnect, rejected value, or missing readback is shown as an error. Saving a preset captures reported values rather than an unconfirmed edit.
 
-The dashboard updates in real time. Device connects, disconnects, battery changes, and topology updates all appear instantly without page refresh.
+Connection details live in a disclosure below the workspace.
 
-## Architecture
+## Presets
 
-The web dashboard is built with React 19 and communicates with the daemon through the same WebSocket API available to any external client. The static assets are bundled into the Python package at build time.
+Save a named snapshot from a device's settings panel. Only writable settings with valid reported values are saved; the dashboard reports any excluded settings. The presets page lists saved setups, including those belonging to disconnected devices.
 
-```mermaid
-graph LR
-    Browser[Browser] -->|WebSocket| WS[WebSocket Server]
-    Browser -->|HTTP| HTTP[HTTP Server]
-    WS --> Daemon[blocksd daemon]
-    HTTP -->|Static Files| Web[Vite Build]
-```
+- **Apply** sends a snapshot to its original device and waits for setting readback.
+- **Restore on USB reconnect** selects the preset for the next USB connection or daemon start. Enabling it does not immediately change settings. Only one preset per device can be selected.
+- **Export** downloads a JSON file; **import** validates that file and creates a separate preset. Imported presets have automatic restoration disabled.
+- **Delete** removes the saved snapshot without changing the device's current settings.
 
-The HTTP server serves the static React app. The WebSocket connection handles all real-time communication: device events, touch data, and LED frame updates.
+Presets belong to the exact device serial and family. Application validates every setting against current reported ranges before sending the first write. If a MIDI send fails partway through, some settings may already have changed; refresh and inspect the device before retrying.
 
-## API Access
+Automatic restoration waits for all saved settings to have reported ranges. The daemon attempts restoration once per USB connection and logs send failures. Brief topology dropouts within that connection preserve unsaved edits; detaching a DNA-connected block alone does not re-arm restoration. Confirm resulting values in the device settings; saved presets do not establish physical device compatibility.
 
-The web server exposes the same API that the Unix socket provides, over WebSocket at `ws://localhost:9010/ws`. See the [External API reference](/reference/api) for protocol details.
+## Storage and upgrades
+
+On Linux, presets live in `$XDG_CONFIG_HOME/blocksd/presets.json`, defaulting to `~/.config/blocksd/presets.json`. Under systemd, blocksd uses the managed `CONFIGURATION_DIRECTORY`. On macOS, presets live in `~/Library/Application Support/blocksd/presets.json`.
+
+Re-run `blocksd install --no-udev` after upgrading an existing Linux service to install its writable configuration directory. The installer restarts the service. Export important presets before changing installations. If the preset file cannot be read, the daemon keeps devices connected but disables preset operations and logs the file error; the original file is left untouched.
+
+The HTTP server serves the bundled React app; WebSocket carries device events and requests. Browser WebSocket connections must use the dashboard's own origin. Native API clients may omit Origin; this is not network authentication. See the [API reference](../reference/api) for the protocol.

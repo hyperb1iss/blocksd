@@ -218,3 +218,28 @@ class TestWebServerIntegration:
         assert isinstance(msg["connections"], list)
 
         writer.close()
+
+
+@pytest.mark.parametrize("origin", ["https://untrusted.example", "null"])
+async def test_cross_origin_browser_cannot_upgrade(origin):
+    server = WebServer(TopologyManager(), host="127.0.0.1", port=0)
+    await server.start()
+    try:
+        assert server._server is not None
+        port = server._server.sockets[0].getsockname()[1]
+        reader, writer = await asyncio.open_connection("127.0.0.1", port)
+        writer.write(
+            (
+                f"GET /ws HTTP/1.1\r\nHost: localhost:{port}\r\n"
+                f"Origin: {origin}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"
+            ).encode()
+        )
+        await writer.drain()
+        response = await reader.read()
+        assert b"403 Forbidden" in response
+        assert b"101 Switching" not in response
+        writer.close()
+        await writer.wait_closed()
+    finally:
+        await server.stop()

@@ -103,10 +103,11 @@ async def test_invalid_commands_return_errors(server_class, message):
 
 
 @pytest.mark.parametrize("server_class", [ApiServer, WebServer])
-@pytest.mark.parametrize(("item", "value"), [("2", "123"), (2.9, 123.9), (2, 123)])
+@pytest.mark.parametrize(("item", "value"), [("2", "123"), (2.0, 123.0), (2, 123)])
 async def test_config_set_preserves_legacy_coercion(server_class, item, value):
     manager = Mock(spec=TopologyManager)
     manager.set_config.return_value = True
+    manager.find_device.return_value = None
     server = server_class(manager)
     response, _ = server._handle_json(
         json.dumps(
@@ -115,7 +116,16 @@ async def test_config_set_preserves_legacy_coercion(server_class, item, value):
         asyncio.Queue(),
         None,
     )
-    assert response == {"type": "config_ack", "uid": 1, "item": item, "ok": True, "id": 0}
+    assert response == {
+        "type": "config_ack",
+        "uid": 1,
+        "item": item,
+        "ok": True,
+        "id": 0,
+        "serial": None,
+        "value": 123,
+        "status": "pending",
+    }
     manager.set_config.assert_called_once_with(1, 2, 123)
 
 

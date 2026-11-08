@@ -1,19 +1,17 @@
 import { BrowserRouter, Route, Routes } from 'react-router';
-import { AppShell } from './components/layout/AppShell';
+import { Studio } from './components/Studio';
 import { BlocksdProvider } from './hooks/useBlocksd';
-import Dashboard from './pages/Dashboard';
-import DeviceDetail from './pages/DeviceDetail';
 
 export default function App() {
   return (
     <BlocksdProvider>
       <BrowserRouter>
-        <AppShell>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/device/:uid" element={<DeviceDetail />} />
-          </Routes>
-        </AppShell>
+        <Routes>
+          <Route path="/" element={<Studio />} />
+          <Route path="/device/:serial" element={<Studio />} />
+          <Route path="/presets" element={<Studio />} />
+          <Route path="*" element={<Studio />} />
+        </Routes>
       </BrowserRouter>
     </BlocksdProvider>
   );

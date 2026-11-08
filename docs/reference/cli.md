@@ -24,42 +24,30 @@ When running under systemd, the daemon sends `READY=1` via sd_notify and periodi
 
 ## `blocksd ui`
 
-Start the daemon with the web dashboard and open a browser.
+Open the running daemon's dashboard. Start the service or `blocksd run` first.
 
 ```bash
-blocksd ui                       # default: localhost:9010
-blocksd ui --port 8080           # custom port
-blocksd ui --host 0.0.0.0       # bind to all interfaces
-blocksd ui --no-browser          # start server without opening browser
+blocksd ui                       # open the existing dashboard
+blocksd ui --no-browser          # print its URL
+blocksd --socket /path/to/blocksd.sock ui
 ```
 
-| Flag           | Short | Description                         |
-| -------------- | ----- | ----------------------------------- |
-| `--port`       | `-p`  | HTTP/WebSocket port (default: 9010) |
-| `--host`       |       | Bind address (default: 127.0.0.1)   |
-| `--no-browser` |       | Don't auto-open browser             |
-| `--verbose`    | `-v`  | Enable debug logging                |
-| `--config`     |       | Path to TOML config file            |
+The daemon reports its configured dashboard address. Set `web_host` and `web_port` in the daemon configuration; the UI command does not change them or start another daemon.
 
 ## `blocksd status`
 
-Scan for connected ROLI devices.
+Read device information from the running daemon without opening MIDI ports.
 
 ```bash
-blocksd status               # quick scan (MIDI port names only)
-blocksd status --probe       # full probe (connects, reads serial/battery/topology)
+blocksd status                  # device, serial, battery, firmware
+blocksd status --probe          # include DNA connection count
 ```
 
-The quick scan lists MIDI ports matching ROLI's naming convention. The `--probe` flag temporarily connects to each device for about 8 seconds to retrieve serial number, device type, firmware version, and battery level, then disconnects.
-
-| Flag        | Short | Description                             |
-| ----------- | ----- | --------------------------------------- |
-| `--probe`   | `-p`  | Connect briefly to get full device info |
-| `--verbose` | `-v`  | Enable debug logging                    |
+Use the global `--socket PATH` option before the command to connect to a custom socket. Otherwise the client reads `api_socket` from the normal configuration locations, then uses the platform default.
 
 ## `blocksd led`
 
-Control Lightpad grids and LUMI key colors. These commands start their own MIDI discovery and keepalive session, apply the pattern as devices connect, and remain running until Ctrl+C. Stop any existing daemon first and restart it afterward. The first frame loads a LittleFoot renderer; pixel delivery waits for upload acknowledgement and a matching execution challenge reply (see [LittleFoot](../architecture/littlefoot)).
+Control Lightpad grids and LUMI key colors. These commands send a frame through the running daemon and exit. Use `--device SERIAL` to select one device; otherwise lighting commands target every connected device with the requested surface. The first frame loads a LittleFoot renderer; pixel delivery waits for upload acknowledgement and a matching execution challenge reply (see [LittleFoot](../architecture/littlefoot)).
 
 ### `blocksd led solid`
 
@@ -119,7 +107,7 @@ blocksd led keys 000000              # key lights off
 
 ## `blocksd config`
 
-Read and write device configuration values through a separate MIDI session lasting about eight seconds. Stop any running daemon first and restart it afterward. The `get` command reports the value cached when discovery fires; an early `not reported` result does not establish that the device lacks that setting. For an existing daemon, use the API `config_get` and `config_set` requests.
+Read reported configuration through the running daemon. Writes validate the device-reported range and wait for matching readback before reporting confirmation. A timeout or disconnect is an error, not a successful save. If multiple devices are connected, specify `--device SERIAL`; configuration commands never silently write to every device.
 
 ### `blocksd config list`
 
@@ -159,7 +147,8 @@ blocksd config get 10            # read velocity sensitivity
 Write a configuration value to the device.
 
 ```bash
-blocksd config set 10 50         # set velocity sensitivity to 50
+blocksd config set 10 50 --device LKB1234567890AB
+blocksd config set --device LKB1234567890AB 4 -- -1  # negative octave
 ```
 
 ## `blocksd install`

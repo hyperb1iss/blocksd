@@ -385,6 +385,12 @@ def _handle_firmware_update_ack(
 # ── Config ────────────────────────────────────────────────────────────────────
 
 
+def _read_config_int(reader: Packed7BitReader) -> int:
+    """Config values and bounds are signed int32 in the SDK decoder."""
+    value = reader.read_bits(BitSize.CONFIG_ITEM_VALUE)
+    return value - (1 << 32) if value & (1 << 31) else value
+
+
 def _handle_config(reader: Packed7BitReader, device_index: int, handler: PacketHandler) -> bool:
     if reader.remaining_bits < BitSize.CONFIG_COMMAND:
         return False
@@ -394,16 +400,16 @@ def _handle_config(reader: Packed7BitReader, device_index: int, handler: PacketH
         if reader.remaining_bits < 8 + 32 + 32 + 32:
             return False
         item = reader.read_bits(BitSize.CONFIG_ITEM_INDEX)
-        value = reader.read_bits(BitSize.CONFIG_ITEM_VALUE)
-        min_val = reader.read_bits(BitSize.CONFIG_ITEM_VALUE)
-        max_val = reader.read_bits(BitSize.CONFIG_ITEM_VALUE)
+        value = _read_config_int(reader)
+        min_val = _read_config_int(reader)
+        max_val = _read_config_int(reader)
         handler.on_config_update(device_index, item, value, min_val, max_val)
 
     elif cmd == ConfigCommand.SET_CONFIG:
         if reader.remaining_bits < 8 + 32:
             return False
         item = reader.read_bits(BitSize.CONFIG_ITEM_INDEX)
-        value = reader.read_bits(BitSize.CONFIG_ITEM_VALUE)
+        value = _read_config_int(reader)
         handler.on_config_set(device_index, item, value)
 
     elif cmd == ConfigCommand.FACTORY_SYNC_END:

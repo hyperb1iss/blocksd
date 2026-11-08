@@ -39,7 +39,7 @@ journalctl --user -u blocksd -f    # follow the logs
 
 ## Check Device Status
 
-In a separate terminal, scan for connected devices:
+In a separate terminal, query the running daemon:
 
 ```bash
 blocksd status
@@ -48,14 +48,12 @@ blocksd status
 For full details including serial number, firmware version, and battery level:
 
 ```bash
-systemctl --user stop blocksd   # also stop any foreground daemon
 blocksd status --probe
-systemctl --user start blocksd
 ```
 
 ## Try LED Patterns
 
-The LED and config commands open their own MIDI sessions. Stop the service and any foreground daemon before using them. LED commands remain running until Ctrl+C; config commands probe for about eight seconds. Restart the service afterward.
+The LED and config commands connect to the running daemon. Keep the service running. LED commands submit a frame and exit; configuration writes wait for device readback. Use `--device SERIAL` to select a device when more than one is connected.
 
 The first LED frame loads a LittleFoot renderer. Pixels follow complete upload acknowledgement and a matching reply to a fresh execution challenge. Visible RGB patterns have been verified on Lightpad M 1.1.0 and LUMI 1.3.9. API acceptance confirms daemon acceptance, not a visible display change. See the [LittleFoot notes](../architecture/littlefoot).
 
@@ -83,7 +81,7 @@ blocksd config set 10 50         # set velocity sensitivity to 50
 
 ## Launch the Web Dashboard
 
-If blocksd is already running, open `http://localhost:9010` directly. Use `blocksd ui` only when no daemon is running; the command starts its own daemon.
+Run `blocksd ui` to open the existing daemon's dashboard. Start the service or `blocksd run` first; opening the UI does not create another hardware session.
 
 For a visual overview of your connected devices:
 
@@ -91,10 +89,10 @@ For a visual overview of your connected devices:
 blocksd ui
 ```
 
-This opens a real-time dashboard at `http://localhost:9010` showing device topology, battery status, and LED state. The dashboard communicates with the daemon over WebSocket.
+The dashboard opens at the daemon's configured address (normally `http://localhost:9010`). Select a device to adjust supported settings and save a preset. The presets page manages saved setups and reconnect restoration.
 
 ```bash
-blocksd ui --port 8080           # custom port
+blocksd ui --no-browser          # print the running dashboard URL
 ```
 
 ## Running as a Service

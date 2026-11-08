@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
+from ipaddress import ip_address
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 if TYPE_CHECKING:
     import asyncio
@@ -96,15 +98,58 @@ def ws_upgrade_response(key: str) -> bytes:
     ).encode()
 
 
+def websocket_origin_allowed(request: HttpRequest, bound_host: str) -> bool:
+    """Keep browser device writes on the dashboard's own origin.
+
+    Native clients need not send Origin. Browser hosts must be IP literals,
+    localhost, or the configured hostname to prevent DNS rebinding.
+    """
+    origin = request.headers.get("origin")
+    if origin is None:
+        return True
+    try:
+        parsed = urlsplit(origin)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or parsed.netloc.lower() != request.headers.get("host", "").lower()
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path
+            or parsed.query
+            or parsed.fragment
+        ):
+            return False
+        hostname = parsed.hostname
+    except ValueError:
+        return False
+    if not hostname:
+        return False
+    try:
+        bound_address = ip_address(bound_host)
+    except ValueError:
+        bound_address = None
+    try:
+        address = ip_address(hostname)
+    except ValueError:
+        address = None
+    if bound_host == "localhost" or (bound_address and bound_address.is_loopback):
+        return hostname == "localhost" or bool(address and address.is_loopback)
+    return address is not None or hostname in {"localhost", bound_host.lower()}
+
+
 def http_response(
     status: int,
     body: bytes,
     content_type: str = "text/plain; charset=utf-8",
 ) -> bytes:
     """Build a minimal HTTP/1.1 response with CORS headers."""
-    reason = {200: "OK", 204: "No Content", 404: "Not Found", 405: "Method Not Allowed"}.get(
-        status, "Error"
-    )
+    reason = {
+        200: "OK",
+        204: "No Content",
+        403: "Forbidden",
+        404: "Not Found",
+        405: "Method Not Allowed",
+    }.get(status, "Error")
     return (
         f"HTTP/1.1 {status} {reason}\r\n"
         f"Content-Type: {content_type}\r\n"

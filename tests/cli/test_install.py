@@ -44,6 +44,8 @@ def test_service_starts_and_restarts_on_repeated_install(setup_commands: Mock) -
         * 2
     )
     assert 'ExecStart="/opt/my tools/blocksd" run --daemon' in install._SERVICE_PATH.read_text()
+    assert "ConfigurationDirectory=blocksd" in install._SERVICE_PATH.read_text()
+    assert "ConfigurationDirectoryMode=0700" in install._SERVICE_PATH.read_text()
 
 
 def test_no_enable_does_not_restart_or_enable(setup_commands: Mock) -> None:

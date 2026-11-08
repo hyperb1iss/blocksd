@@ -67,6 +67,8 @@ def _generate_service(bin_path: str) -> str:
         Restart=on-failure
         RestartSec=5
         WatchdogSec=30
+        ConfigurationDirectory=blocksd
+        ConfigurationDirectoryMode=0700
 
         # Security hardening (user-service safe subset)
         NoNewPrivileges=true

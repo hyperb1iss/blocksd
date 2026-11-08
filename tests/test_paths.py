@@ -44,6 +44,18 @@ def test_linux_paths_are_unchanged(monkeypatch, tmp_path):
     assert paths.default_socket_path() == Path("/tmp/blocksd/blocksd.sock")
 
 
+def test_preset_paths_follow_user_configuration_location(monkeypatch, tmp_path):
+    monkeypatch.setattr(paths.sys, "platform", "linux")
+    monkeypatch.delenv("CONFIGURATION_DIRECTORY", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "custom"))
+    assert paths.presets_path() == tmp_path / "custom/blocksd/presets.json"
+    monkeypatch.setenv("CONFIGURATION_DIRECTORY", str(tmp_path / "systemd/blocksd"))
+    assert paths.presets_path() == tmp_path / "systemd/blocksd/presets.json"
+    monkeypatch.setattr(paths.sys, "platform", "darwin")
+    monkeypatch.setattr(paths.Path, "home", lambda: tmp_path)
+    assert paths.presets_path() == tmp_path / "Library/Application Support/blocksd/presets.json"
+
+
 def test_macos_socket_is_short_and_user_specific(monkeypatch):
     monkeypatch.setattr(paths.sys, "platform", "darwin")
     monkeypatch.setattr(paths.os, "getuid", lambda: 501)

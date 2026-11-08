@@ -62,7 +62,7 @@ The schema accepts `scan_interval`, `ping_interval_master`, `ping_interval_dna`,
 
 ### Web Dashboard
 
-**`web_enabled`** starts the HTTP and WebSocket servers alongside the daemon. Defaults to `true`, so `blocksd run` serves the web UI unless disabled. Use `--no-browser` on `blocksd ui` if you just want the server without opening a browser window.
+**`web_enabled`** starts the HTTP and WebSocket servers alongside the daemon. Defaults to `true`, so `blocksd run` serves the web UI unless disabled. Use `blocksd ui` to open the running dashboard, or `blocksd ui --no-browser` to print its URL.
 
 **`web_host`** and **`web_port`** control the server binding. The default `127.0.0.1:9010` only accepts local connections.
 
@@ -72,13 +72,13 @@ Setting `web_host` to `0.0.0.0` exposes your device controls to the entire netwo
 
 ## Command-Line Overrides
 
-The `-v` flag enables verbose logging in addition to the config value. The `ui` command always enables the web server and replaces the configured host and port with its CLI values (including defaults):
+The `-v` flag enables verbose logging. Device commands use the running daemon; `ui` does not replace its host or port settings.
 
 ```bash
-blocksd run -v                   # enable debug logging
-blocksd ui --port 8080           # override web port
-blocksd ui --host 0.0.0.0       # bind to all interfaces
-blocksd ui --no-browser          # start server without opening browser
+blocksd run -v                         # enable debug logging
+blocksd run --config my.toml           # choose daemon settings
+blocksd ui --no-browser                # print the dashboard URL
+blocksd --socket /path/to/blocksd.sock status
 ```
 
 ## Environment Variables

@@ -7,6 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from blocksd.device.registry import bitmap_grid_dimensions, key_count_for_block
+from blocksd.device.settings import config_value_dict, setting_schema
 
 if TYPE_CHECKING:
     from blocksd.device.models import (
@@ -102,13 +103,16 @@ class EventBroadcaster:
         }
         self._broadcast("topology", msg)
 
-    def broadcast_config_changed(self, uid: int, config: ConfigValue) -> None:
+    def broadcast_config_changed(
+        self, uid: int, config: ConfigValue, *, serial: str | None = None
+    ) -> None:
         """Broadcast a config change event."""
         msg: dict[str, Any] = {
             "type": "config_changed",
             "uid": uid,
-            "item": config.item,
-            "value": config.value,
+            "serial": serial,
+            "schema": setting_schema([config.item])[0],
+            **config_value_dict(config),
         }
         self._broadcast("config", msg)
 

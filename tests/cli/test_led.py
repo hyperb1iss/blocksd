@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
-import signal
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
 
 from blocksd.cli.app import app
-from blocksd.cli.led import _parse_color, _run_with_pattern
-from blocksd.device.models import BlockType, DeviceInfo
+from blocksd.cli.led import _parse_color
 from blocksd.led.bitmap import Color, LEDGrid
 
 runner = CliRunner()
@@ -134,11 +131,11 @@ class TestLedCommandsRun:
 
 
 class TestKeyLighting:
-    def test_help_explains_standalone_lifetime(self):
+    def test_help_explains_daemon_connection(self):
         result = runner.invoke(app, ["led", "keys", "--help"])
         assert result.exit_code == 0
-        assert "Stop the daemon" in result.output
-        assert "Ctrl+C" in result.output
+        assert "running daemon" in result.output
+        assert "then exit" in result.output
 
     @pytest.mark.parametrize("args", [[], ["rainbow"], ["ff0000"]])
     @patch("blocksd.cli.led._run_with_pattern")
@@ -160,89 +157,3 @@ class TestKeyLighting:
         result = runner.invoke(app, ["led", "keys", "bad"])
         assert result.exit_code == 1
         mock_run.assert_not_called()
-
-    @pytest.mark.parametrize("key_lighting", [True, False])
-    def test_runner_keeps_key_and_bitmap_devices_separate(self, key_lighting):
-        manager = Mock()
-        manager.on_device_added = []
-        manager.on_device_removed = []
-        with (
-            patch("blocksd.topology.manager.TopologyManager", return_value=manager),
-            patch("blocksd.logging.setup_logging"),
-            patch("blocksd.cli.led.asyncio.run", side_effect=lambda coroutine: coroutine.close()),
-        ):
-            _run_with_pattern(lambda grid: grid.fill(Color(255, 0, 0)), key_lighting=key_lighting)
-        for uid, block_type in enumerate(BlockType):
-            manager.on_device_added[0](
-                DeviceInfo(
-                    uid=uid,
-                    topology_index=uid,
-                    serial="DEVICE",
-                    block_type=block_type,
-                    version="1.3.9",
-                )
-            )
-        if key_lighting:
-            manager.set_key_led_data.assert_called_once()
-            assert manager.set_key_led_data.call_args.args[1] == bytes.fromhex("1f00") * 24
-            manager.set_led_data.assert_not_called()
-        else:
-            assert manager.set_led_data.call_count == 2
-            assert manager.set_led_data.call_args.args[1] == bytes.fromhex("1f00") * 225
-            manager.set_key_led_data.assert_not_called()
-
-    @pytest.mark.parametrize("disconnect_before_version", [False, True])
-    def test_command_waits_for_firmware_and_cancels_on_disconnect(
-        self, monkeypatch, disconnect_before_version
-    ):
-        manager = Mock()
-        manager.on_device_added = []
-        manager.on_device_removed = []
-        stopped = False
-        device = DeviceInfo(
-            uid=7, topology_index=1, serial="LKB000", block_type=BlockType.LUMI_KEYS
-        )
-        signals = {}
-
-        async def manager_run():
-            nonlocal stopped
-            try:
-                manager.on_device_added[0](device)
-                await asyncio.sleep(0.06)
-                manager.set_key_led_data.assert_not_called()
-                if disconnect_before_version:
-                    manager.on_device_removed[0](device)
-                device.version = "1.3.9"
-                await asyncio.sleep(0.12)
-                if disconnect_before_version:
-                    manager.set_key_led_data.assert_not_called()
-                else:
-                    manager.set_key_led_data.assert_called_once_with(7, bytes.fromhex("1f00") * 24)
-                signals[signal.SIGINT]()
-                await asyncio.Future()
-            finally:
-                stopped = True
-
-        manager.run = manager_run
-
-        def run_command(coroutine):
-            with asyncio.Runner() as async_runner:
-                loop = async_runner.get_loop()
-                monkeypatch.setattr(
-                    loop, "add_signal_handler", lambda sig, cb: signals.update({sig: cb})
-                )
-
-                async def bounded():
-                    async with asyncio.timeout(1):
-                        await coroutine
-
-                async_runner.run(bounded())
-
-        with (
-            patch("blocksd.topology.manager.TopologyManager", return_value=manager),
-            patch("blocksd.logging.setup_logging"),
-            patch("blocksd.cli.led.asyncio.run", side_effect=run_command),
-        ):
-            result = runner.invoke(app, ["led", "keys", "ff0000"])
-        assert result.exit_code == 0, result.exception
-        assert stopped
