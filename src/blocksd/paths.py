@@ -26,3 +26,13 @@ def default_socket_path() -> Path:
     if runtime_dir := os.environ.get("XDG_RUNTIME_DIR"):
         return Path(runtime_dir) / "blocksd" / "blocksd.sock"
     return Path("/tmp/blocksd/blocksd.sock")  # noqa: S108
+
+
+def presets_path() -> Path:
+    """Return the per-user preset store, separate from daemon configuration."""
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "blocksd" / "presets.json"
+    if configuration_directory := os.environ.get("CONFIGURATION_DIRECTORY"):
+        return Path(configuration_directory) / "presets.json"
+    root = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
+    return root / "blocksd" / "presets.json"

@@ -14,11 +14,13 @@ from blocksd import __version__
 from blocksd.api.events import VALID_EVENTS, EventBroadcaster, _connection_to_dict, _device_to_dict
 from blocksd.api.protocol import PIXEL_DATA_SIZE, decode_json, parse_binary_frame
 from blocksd.device.registry import key_count_for_block, supports_key_led_program
+from blocksd.device.settings import config_value_dict, setting_schema
 from blocksd.led.bitmap import Color, LEDGrid
 
 if TYPE_CHECKING:
     import asyncio
 
+    from blocksd.config.presets import PresetService
     from blocksd.topology.manager import TopologyManager
 
 log = logging.getLogger(__name__)
@@ -27,8 +29,16 @@ log = logging.getLogger(__name__)
 class ApiCommands:
     """One command implementation shared by Unix and WebSocket transports."""
 
-    def __init__(self, manager: TopologyManager) -> None:
+    def __init__(
+        self,
+        manager: TopologyManager,
+        *,
+        presets: PresetService | None = None,
+        web_url: str | None = None,
+    ) -> None:
         self._manager = manager
+        self._presets = presets
+        self._web_url = web_url
         self._broadcaster = EventBroadcaster()
         self._start_time = time.monotonic()
         self._brightness_store: dict[int, int] = {}
@@ -57,7 +67,10 @@ class ApiCommands:
 
         if not isinstance(msg, dict):
             return {"type": "error", "message": "expected JSON object"}, None
-        response, sub_id = self._dispatch_message(msg, event_queue, current_sub_id)
+        try:
+            response, sub_id = self._dispatch_message(msg, event_queue, current_sub_id)
+        except (TypeError, ValueError, OSError) as error:
+            response, sub_id = {"type": "error", "message": str(error)}, None
         if response is not None and "id" in msg:
             response.setdefault("id", msg["id"])
         return response, sub_id
@@ -98,6 +111,9 @@ class ApiCommands:
         if msg_type == "config_set":
             return self._handle_config_set(msg), None
 
+        if isinstance(msg_type, str) and msg_type.startswith("preset_"):
+            return self._handle_preset(msg), None
+
         if msg_type == "topology":
             return self._handle_topology(msg_id), None
 
@@ -117,6 +133,7 @@ class ApiCommands:
             "version": __version__,
             "uptime_seconds": int(uptime),
             "device_count": len(self._manager.devices),
+            "web_url": self._web_url,
         }
         if msg_id:
             resp["id"] = msg_id
@@ -210,26 +227,24 @@ class ApiCommands:
         return grid
 
     def _handle_config_get(self, msg: dict[str, Any]) -> dict[str, Any]:
-        uid = msg.get("uid")
+        uid = self._target_uid(msg)
         msg_id = msg.get("id")
-        if type(uid) is not int:
-            return {"type": "error", "message": "uid must be an integer"}
 
         values = self._manager.get_config(uid)
+        device = self._manager.find_device(uid)
         resp: dict[str, Any] = {
             "type": "config_values",
             "uid": uid,
-            "values": [
-                {"item": cv.item, "value": cv.value, "min": cv.min_val, "max": cv.max_val}
-                for cv in values.values()
-            ],
+            "serial": device.serial if device else None,
+            "values": [config_value_dict(cv) for cv in values.values()],
+            "schema": setting_schema(list(values)),
         }
         if msg_id:
             resp["id"] = msg_id
         return resp
 
     def _handle_config_set(self, msg: dict[str, Any]) -> dict[str, Any]:
-        uid = msg.get("uid")
+        uid = self._target_uid(msg)
         item = msg.get("item")
         value = msg.get("value")
         msg_id = msg.get("id")
@@ -238,16 +253,97 @@ class ApiCommands:
 
         if type(uid) is not int:
             return {"type": "error", "message": "uid must be an integer"}
+        for number in (item, value):
+            if isinstance(number, bool) or (isinstance(number, float) and not number.is_integer()):
+                raise ValueError("item/value must be whole integers, not booleans or fractions")
         try:
             config_item, config_value = int(item), int(value)
         except (TypeError, ValueError, OverflowError):
             return {"type": "error", "message": "item/value must be convertible to integers"}
 
         ok = self._manager.set_config(uid, config_item, config_value)
-        resp: dict[str, Any] = {"type": "config_ack", "uid": uid, "item": item, "ok": ok}
+        device = self._manager.find_device(uid)
+        resp: dict[str, Any] = {
+            "type": "config_ack",
+            "uid": uid,
+            "item": item,
+            "value": config_value,
+            "serial": device.serial if device else None,
+            "ok": ok,
+            "status": "pending" if ok else "error",
+        }
+        if not ok:
+            resp["message"] = (
+                "Setting write or readback request failed. Check the connection and reported range, then read device state before retrying."
+            )
         if msg_id:
             resp["id"] = msg_id
         return resp
+
+    def _target_uid(self, msg: dict[str, Any]) -> int:
+        if "serial" in msg:
+            serial = msg["serial"]
+            if not isinstance(serial, str) or not serial:
+                raise ValueError("serial must be a nonempty string")
+            for device in self._manager.devices:
+                if device.serial == serial:
+                    return device.uid
+            raise ValueError("Device is not connected")
+        uid = msg.get("uid")
+        if type(uid) is not int:
+            raise ValueError("uid must be an integer, or provide a device serial")
+        return uid
+
+    def _handle_preset(self, msg: dict[str, Any]) -> dict[str, Any]:
+        service = self._presets
+        if service is None:
+            raise ValueError("Preset service is unavailable")
+        command = msg["type"]
+        if command == "preset_list":
+            serial = msg.get("serial")
+            if serial is not None and not isinstance(serial, str):
+                raise ValueError("serial must be a string")
+            return {
+                "type": "preset_list",
+                "presets": [p.model_dump() for p in service.store.list_presets(serial)],
+            }
+        if command == "preset_save":
+            name = msg.get("name")
+            auto_restore = msg.get("auto_restore", False)
+            if not isinstance(name, str) or type(auto_restore) is not bool:
+                raise ValueError("name must be a string and auto_restore must be a boolean")
+            uid = self._target_uid(msg)
+            preset = service.save(uid, name, auto_restore=auto_restore)
+            skipped = sorted(set(self._manager.get_config(uid)) - {v.item for v in preset.values})
+            return {"type": "preset_saved", "preset": preset.model_dump(), "skipped_items": skipped}
+        if command == "preset_import":
+            preset = service.import_preset(msg.get("preset"))
+            return {"type": "preset_saved", "preset": preset.model_dump()}
+        preset_id = msg.get("preset_id")
+        if not isinstance(preset_id, str):
+            raise TypeError("preset_id must be a string")
+        if command == "preset_apply":
+            uid = self._target_uid(msg)
+            values = service.apply(uid, preset_id)
+            return {
+                "type": "preset_applied",
+                "uid": uid,
+                "preset_id": preset_id,
+                "status": "pending",
+                "values": [v.model_dump() for v in values],
+            }
+        if command == "preset_delete":
+            service.store.delete(preset_id)
+            return {"type": "preset_deleted", "preset_id": preset_id}
+        if command == "preset_export":
+            return {"type": "preset_export", "preset": service.store.get(preset_id).model_dump()}
+        if command == "preset_update":
+            auto_restore = msg.get("auto_restore")
+            if type(auto_restore) is not bool:
+                raise ValueError("auto_restore must be a boolean")
+            preset = service.update(preset_id, auto_restore=auto_restore)
+            return {"type": "preset_saved", "preset": preset.model_dump()}
+        raise ValueError(f"Unknown preset command: {command}")
 
     def _handle_topology(self, msg_id: str | None) -> dict[str, Any]:
         devices = [_device_to_dict(d) for d in self._manager.devices]

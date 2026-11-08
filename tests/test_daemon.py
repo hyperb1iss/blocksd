@@ -6,11 +6,12 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from blocksd import daemon
+from blocksd.config.presets import PresetStore
 from blocksd.config.schema import DaemonConfig
 
 
 @pytest.fixture
-async def runtime(monkeypatch):
+async def runtime(monkeypatch, tmp_path):
     manager = Mock()
     for name in (
         "on_device_added",
@@ -18,6 +19,7 @@ async def runtime(monkeypatch):
         "on_topology_changed",
         "on_touch_event",
         "on_button_event",
+        "on_config_changed",
     ):
         setattr(manager, name, [])
     manager.run = AsyncMock()
@@ -26,6 +28,7 @@ async def runtime(monkeypatch):
     monkeypatch.setattr(daemon, "TopologyManager", Mock(return_value=manager))
     monkeypatch.setattr(daemon, "ApiServer", Mock(return_value=api))
     monkeypatch.setattr(daemon, "WebServer", Mock(return_value=web))
+    monkeypatch.setattr(daemon, "PresetStore", lambda: PresetStore(tmp_path / "presets.json"))
     monkeypatch.setattr(daemon, "setup_logging", Mock())
     monkeypatch.setattr(daemon.sdnotify, "watchdog_usec", Mock(return_value=None))
     for name in ("ready", "status", "stopping"):
@@ -44,6 +47,59 @@ async def test_partial_startup_unwinds_servers_and_signals(runtime):
     api.stop.assert_awaited_once()
     web.stop.assert_awaited_once()
     assert loop.remove_signal_handler.call_count == 2
+
+
+async def test_transports_share_preset_owner_and_cleanup_callbacks(runtime, monkeypatch):
+    manager, api, web, _ = runtime
+    api_factory = Mock(return_value=api)
+    web_factory = Mock(return_value=web)
+    monkeypatch.setattr(daemon, "ApiServer", api_factory)
+    monkeypatch.setattr(daemon, "WebServer", web_factory)
+    with pytest.raises(RuntimeError, match="stopped unexpectedly"):
+        await daemon.run_daemon(DaemonConfig(web_port=9018))
+    unix_options = api_factory.call_args.kwargs
+    web_options = web_factory.call_args.kwargs
+    assert unix_options["presets"] is web_options["presets"]
+    assert unix_options["web_url"] == "http://127.0.0.1:9018"
+    assert not manager.on_config_changed
+    assert len(manager.on_device_removed) == 1  # Only the daemon logging callback remains.
+
+
+@pytest.mark.parametrize("problem", ["corrupt", "directory", "unreadable"])
+async def test_bad_presets_do_not_stop_device_services(
+    runtime, monkeypatch, tmp_path, caplog, problem
+):
+    manager, api, web, loop = runtime
+    path = tmp_path / "presets.json"
+    if problem == "directory":
+        path.mkdir()
+    else:
+        path.write_text("broken")
+    if problem == "unreadable":
+        monkeypatch.setattr(daemon, "PresetStore", Mock(side_effect=PermissionError("unreadable")))
+    monkeypatch.setattr(daemon, "presets_path", lambda: path)
+    api_factory = Mock(return_value=api)
+    web_factory = Mock(return_value=web)
+    monkeypatch.setattr(daemon, "ApiServer", api_factory)
+    monkeypatch.setattr(daemon, "WebServer", web_factory)
+    manager.run.side_effect = asyncio.Event().wait
+    monkeypatch.setattr(
+        daemon.sdnotify,
+        "ready",
+        Mock(side_effect=lambda: loop.add_signal_handler.call_args.args[1]()),
+    )
+    async with asyncio.timeout(2):
+        await daemon.run_daemon(DaemonConfig())
+    manager.run.assert_awaited_once()
+    api.start.assert_awaited_once()
+    web.start.assert_awaited_once()
+    assert api_factory.call_args.kwargs["presets"] is None
+    assert web_factory.call_args.kwargs["presets"] is None
+    assert "Presets disabled" in caplog.text and str(path) in caplog.text
+    if problem == "directory":
+        assert path.is_dir()
+    else:
+        assert path.read_text() == "broken"
 
 
 async def test_shutdown_accepts_watchdog_completion(runtime, monkeypatch):

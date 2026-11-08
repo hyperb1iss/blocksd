@@ -69,7 +69,8 @@ def response(request: dict, **fields: object) -> dict:
     return {"id": request["id"], **fields}
 
 
-def test_config_set_waits_for_readback_arriving_before_ack(tmp_path):
+@pytest.mark.parametrize(("value", "arguments"), [(1, ["1"]), (-1, ["--", "-1"])])
+def test_config_set_waits_for_readback_arriving_before_ack(tmp_path, value, arguments):
     requests = []
 
     def handle(request):
@@ -83,15 +84,15 @@ def test_config_set_waits_for_readback_arriving_before_ack(tmp_path):
                 assert request["uid"] == DEVICE["uid"]
                 assert request["item"] == 40
                 return [
-                    {"type": "config_changed", "uid": DEVICE["uid"], "item": 40, "value": 1},
+                    {"type": "config_changed", "uid": DEVICE["uid"], "item": 40, "value": value},
                     response(request, type="config_ack", ok=True, status="pending"),
                 ]
         raise AssertionError(request)
 
     with serve(tmp_path / "daemon.sock", handle) as path:
-        result = runner.invoke(app, ["--socket", str(path), "config", "set", "40", "1"])
+        result = runner.invoke(app, ["--socket", str(path), "config", "set", "40", *arguments])
     assert result.exit_code == 0, result.exception
-    assert "Confirmed: LKB001 config[40] = 1" in result.output
+    assert f"Confirmed: LKB001 config[40] = {value}" in result.output
     assert [r["type"] for r in requests] == ["discover", "subscribe", "config_set"]
 
 

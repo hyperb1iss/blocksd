@@ -11,8 +11,10 @@ from typing import TYPE_CHECKING
 
 from blocksd import sdnotify
 from blocksd.api.server import ApiServer, WebServer
+from blocksd.config.presets import PresetService, PresetStore
 from blocksd.config.schema import DaemonConfig
 from blocksd.logging import setup_logging
+from blocksd.paths import presets_path
 from blocksd.topology.manager import TopologyManager
 
 if TYPE_CHECKING:
@@ -34,16 +36,29 @@ async def run_daemon(config: DaemonConfig) -> None:
     manager.on_topology_changed.append(_on_topology_changed)
     manager.on_touch_event.append(_on_touch)
     manager.on_button_event.append(_on_button)
+    try:
+        presets = PresetService(manager, PresetStore())
+    except (OSError, ValueError):
+        log.exception(
+            "Presets disabled: could not load %s; device services will continue", presets_path()
+        )
+        presets = None
+    web_host = "127.0.0.1" if config.web_host == "0.0.0.0" else config.web_host  # noqa: S104
+    if ":" in web_host:
+        web_host = f"[{web_host}]"
+    web_url = f"http://{web_host}:{config.web_port}" if config.web_enabled else None
 
     # Start API server for Hypercolor integration
     socket_path = Path(config.api_socket) if config.api_socket else None
-    api_server = ApiServer(manager, socket_path=socket_path)
+    api_server = ApiServer(manager, socket_path=socket_path, presets=presets, web_url=web_url)
 
     # Start web UI server
     web_server = WebServer(
         manager,
         host=config.web_host,
         port=config.web_port,
+        presets=presets,
+        web_url=web_url,
     )
 
     # Graceful shutdown on SIGINT/SIGTERM
@@ -51,6 +66,9 @@ async def run_daemon(config: DaemonConfig) -> None:
     stop_event = asyncio.Event()
 
     async with contextlib.AsyncExitStack() as cleanup:
+        if presets is not None:
+            presets.start()
+            cleanup.callback(presets.close)
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, stop_event.set)
             cleanup.callback(loop.remove_signal_handler, sig)

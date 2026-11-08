@@ -28,6 +28,7 @@ from blocksd.device.registry import (
     supports_bitmap_led_program,
     supports_key_led_program,
 )
+from blocksd.device.settings import validate_setting
 from blocksd.led.buffered_program import BufferedLEDProgram
 from blocksd.led.program import LEDProgram
 from blocksd.littlefoot.keys import KEY_HEAP_SIZE, key_led_program
@@ -384,11 +385,15 @@ class DeviceGroup:
         dev = self._devices.get(uid)
         if dev is None or uid not in self._pings:
             return False
-        self.conn.send(build_config_request(dev.topology_index, item))
+        try:
+            validate_setting(self.get_config(uid), item, value)
+        except ValueError:
+            return False
         from blocksd.protocol.builder import build_config_set
 
-        self.conn.send(build_config_set(dev.topology_index, item, value))
-        return True
+        if not self.conn.send(build_config_set(dev.topology_index, item, value)):
+            return False
+        return self.conn.send(build_config_request(dev.topology_index, item))
 
     def _request_config_sync(self, uid: int) -> None:
         """Request a full config sync from a newly connected device."""
@@ -589,7 +594,9 @@ class DeviceGroup:
         uid = self._uid_from_index(device_index)
         if uid:
             self._update_api_ping(uid)
-            cv = ConfigValue(item=item, value=value, min_val=min_val, max_val=max_val)
+            cv = ConfigValue(
+                item=item, value=value, min_val=min_val, max_val=max_val, has_range=True
+            )
             self._config.setdefault(uid, {})[item] = cv
             for cb in self.on_config_changed:
                 cb(uid, cv)
@@ -598,7 +605,14 @@ class DeviceGroup:
         uid = self._uid_from_index(device_index)
         if uid:
             self._update_api_ping(uid)
-            cv = ConfigValue(item=item, value=value)
+            previous = self._config.get(uid, {}).get(item)
+            cv = ConfigValue(
+                item=item,
+                value=value,
+                min_val=previous.min_val if previous else 0,
+                max_val=previous.max_val if previous else 0,
+                has_range=previous.has_range if previous else False,
+            )
             self._config.setdefault(uid, {})[item] = cv
             for cb in self.on_config_changed:
                 cb(uid, cv)

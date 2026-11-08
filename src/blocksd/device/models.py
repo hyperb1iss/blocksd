@@ -120,3 +120,4 @@ class ConfigValue:
     value: int
     min_val: int = 0
     max_val: int = 0
+    has_range: bool = False

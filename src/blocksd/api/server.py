@@ -18,7 +18,13 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from blocksd.api.commands import ApiCommands
-from blocksd.api.http import http_response, parse_request, serve_static, ws_upgrade_response
+from blocksd.api.http import (
+    http_response,
+    parse_request,
+    serve_static,
+    websocket_origin_allowed,
+    ws_upgrade_response,
+)
 from blocksd.api.protocol import (
     BINARY_FRAME_SIZE,
     BINARY_MAGIC,
@@ -32,6 +38,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
     from pathlib import Path
 
+    from blocksd.config.presets import PresetService
+    from blocksd.device.models import ConfigValue
     from blocksd.topology.manager import TopologyManager
 
 log = logging.getLogger(__name__)
@@ -40,8 +48,14 @@ log = logging.getLogger(__name__)
 class _ApiTransport(ApiCommands):
     """Own listeners, accepted connection tasks, and topology subscriptions."""
 
-    def __init__(self, manager: TopologyManager) -> None:
-        super().__init__(manager)
+    def __init__(
+        self,
+        manager: TopologyManager,
+        *,
+        presets: PresetService | None = None,
+        web_url: str | None = None,
+    ) -> None:
+        super().__init__(manager, presets=presets, web_url=web_url)
         self._server: asyncio.Server | None = None
         self._clients: set[asyncio.Task[None]] = set()
         self._events_attached = False
@@ -66,8 +80,14 @@ class _ApiTransport(ApiCommands):
         self._manager.on_touch_event.append(self._broadcaster.broadcast_touch)
         self._manager.on_button_event.append(self._broadcaster.broadcast_button)
         self._manager.on_topology_changed.append(self._broadcaster.broadcast_topology_changed)
-        self._manager.on_config_changed.append(self._broadcaster.broadcast_config_changed)
+        self._manager.on_config_changed.append(self._on_config_changed)
         self._events_attached = True
+
+    def _on_config_changed(self, uid: int, config: ConfigValue) -> None:
+        device = self._manager.find_device(uid)
+        self._broadcaster.broadcast_config_changed(
+            uid, config, serial=device.serial if device else None
+        )
 
     async def stop(self) -> None:
         """Stop accepting work, join all clients, and release callback ownership."""
@@ -87,7 +107,7 @@ class _ApiTransport(ApiCommands):
             self._manager.on_touch_event.remove(self._broadcaster.broadcast_touch)
             self._manager.on_button_event.remove(self._broadcaster.broadcast_button)
             self._manager.on_topology_changed.remove(self._broadcaster.broadcast_topology_changed)
-            self._manager.on_config_changed.remove(self._broadcaster.broadcast_config_changed)
+            self._manager.on_config_changed.remove(self._on_config_changed)
             self._events_attached = False
 
 
@@ -102,8 +122,11 @@ class ApiServer(_ApiTransport):
         self,
         manager: TopologyManager,
         socket_path: Path | None = None,
+        *,
+        presets: PresetService | None = None,
+        web_url: str | None = None,
     ) -> None:
-        super().__init__(manager)
+        super().__init__(manager, presets=presets, web_url=web_url)
         self._socket_path = socket_path or default_socket_path()
         self._private_runtime = socket_path is None and sys.platform == "darwin"
         self._start_time = time.monotonic()
@@ -262,8 +285,11 @@ class WebServer(_ApiTransport):
         host: str = "127.0.0.1",
         port: int = 9010,
         static_dir: Path | None = None,
+        *,
+        presets: PresetService | None = None,
+        web_url: str | None = None,
     ) -> None:
-        super().__init__(manager)
+        super().__init__(manager, presets=presets, web_url=web_url)
         self._host = host
         self._port = port
         self._static_dir = static_dir or resolve_static_dir()
@@ -302,6 +328,12 @@ class WebServer(_ApiTransport):
                 return
 
             if request.is_websocket_upgrade and request.path == "/ws":
+                if not websocket_origin_allowed(request, self._host):
+                    writer.write(
+                        http_response(403, b"Open the dashboard on this server to control devices.")
+                    )
+                    await writer.drain()
+                    return
                 log.info("WebSocket client connected")
                 writer.write(ws_upgrade_response(request.ws_key))
                 await writer.drain()
