@@ -6,7 +6,9 @@ import base64
 import contextlib
 import json
 import socket
+import tempfile
 import threading
+from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -18,7 +20,6 @@ from blocksd.cli.client import ClientError, DaemonClient
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
-    from pathlib import Path
 
 runner = CliRunner()
 DEVICE = {
@@ -33,6 +34,13 @@ DEVICE = {
     "grid_height": 0,
     "key_count": 24,
 }
+
+
+@pytest.fixture
+def socket_path():
+    # macOS TMPDIR plus pytest names can exceed sockaddr_un.sun_path.
+    with tempfile.TemporaryDirectory(prefix="blocksd-cli-", dir="/tmp") as directory:
+        yield Path(directory) / "daemon.sock"
 
 
 @contextlib.contextmanager
@@ -70,7 +78,7 @@ def response(request: dict, **fields: object) -> dict:
 
 
 @pytest.mark.parametrize(("value", "arguments"), [(1, ["1"]), (-1, ["--", "-1"])])
-def test_config_set_waits_for_readback_arriving_before_ack(tmp_path, value, arguments):
+def test_config_set_waits_for_readback_arriving_before_ack(socket_path, value, arguments):
     requests = []
 
     def handle(request):
@@ -89,14 +97,14 @@ def test_config_set_waits_for_readback_arriving_before_ack(tmp_path, value, argu
                 ]
         raise AssertionError(request)
 
-    with serve(tmp_path / "daemon.sock", handle) as path:
+    with serve(socket_path, handle) as path:
         result = runner.invoke(app, ["--socket", str(path), "config", "set", "40", *arguments])
     assert result.exit_code == 0, result.exception
     assert f"Confirmed: LKB001 config[40] = {value}" in result.output
     assert [r["type"] for r in requests] == ["discover", "subscribe", "config_set"]
 
 
-def test_config_set_does_not_claim_success_after_disconnect(tmp_path):
+def test_config_set_does_not_claim_success_after_disconnect(socket_path):
     def handle(request):
         match request["type"]:
             case "discover":
@@ -110,16 +118,16 @@ def test_config_set_does_not_claim_success_after_disconnect(tmp_path):
                 ]
         raise AssertionError(request)
 
-    with serve(tmp_path / "daemon.sock", handle) as path:
+    with serve(socket_path, handle) as path:
         result = runner.invoke(app, ["--socket", str(path), "config", "set", "40", "1"])
     assert result.exit_code == 1
     assert "disconnected before confirming" in result.output
     assert "Confirmed:" not in result.output
 
 
-def test_config_requires_selection_when_multiple_devices_connected(tmp_path):
+def test_config_requires_selection_when_multiple_devices_connected(socket_path):
     with serve(
-        tmp_path / "daemon.sock",
+        socket_path,
         lambda request: [response(request, devices=[DEVICE, {**DEVICE, "serial": "LKB002"}])],
     ) as path:
         result = runner.invoke(app, ["--socket", str(path), "config", "set", "40", "1"])
@@ -127,10 +135,10 @@ def test_config_requires_selection_when_multiple_devices_connected(tmp_path):
     assert "--device SERIAL" in result.output
 
 
-def test_ui_opens_reported_url_without_starting_a_daemon(tmp_path):
+def test_ui_opens_reported_url_without_starting_a_daemon(socket_path):
     with (
         serve(
-            tmp_path / "daemon.sock",
+            socket_path,
             lambda request: [response(request, type="pong", web_url="http://localhost:9022")],
         ) as path,
         patch("blocksd.daemon.start") as start,
@@ -142,9 +150,9 @@ def test_ui_opens_reported_url_without_starting_a_daemon(tmp_path):
     browser.assert_called_once_with("http://localhost:9022")
 
 
-def test_status_uses_daemon_topology(tmp_path):
+def test_status_uses_daemon_topology(socket_path):
     with serve(
-        tmp_path / "daemon.sock",
+        socket_path,
         lambda request: [response(request, devices=[DEVICE], connections=[])],
     ) as path:
         result = runner.invoke(app, ["--socket", str(path), "status", "--probe"])
@@ -153,7 +161,7 @@ def test_status_uses_daemon_topology(tmp_path):
     assert "DNA connections: 0" in result.output
 
 
-def test_led_keys_send_only_key_surface_and_exit(tmp_path):
+def test_led_keys_send_only_key_surface_and_exit(socket_path):
     frames = []
 
     def handle(request):
@@ -177,7 +185,7 @@ def test_led_keys_send_only_key_surface_and_exit(tmp_path):
         frames.append(request)
         return [response(request, type="key_frame_ack", accepted=True)]
 
-    with serve(tmp_path / "daemon.sock", handle) as path:
+    with serve(socket_path, handle) as path:
         result = runner.invoke(app, ["--socket", str(path), "led", "keys", "ff0000"])
     assert result.exit_code == 0, result.exception
     assert len(frames) == 1
@@ -187,15 +195,15 @@ def test_led_keys_send_only_key_surface_and_exit(tmp_path):
     assert "Frame accepted" in result.output
 
 
-def test_missing_daemon_is_actionable(tmp_path):
-    result = runner.invoke(app, ["--socket", str(tmp_path / "absent.sock"), "status"])
+def test_missing_daemon_is_actionable(socket_path):
+    result = runner.invoke(app, ["--socket", str(socket_path), "status"])
     assert result.exit_code == 1
     assert "blocksd run" in result.output
 
 
-def test_client_timeout_is_not_confirmation(tmp_path):
+def test_client_timeout_is_not_confirmation(socket_path):
     with (
-        serve(tmp_path / "daemon.sock", lambda _: []) as path,
+        serve(socket_path, lambda _: []) as path,
         DaemonClient(path, timeout=0.02) as client,
         pytest.raises(ClientError, match="Timed out"),
     ):
