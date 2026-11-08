@@ -11,8 +11,18 @@ app = typer.Typer(
 )
 
 
+@app.callback()
+def main(
+    ctx: typer.Context,
+    socket: Path | None = typer.Option(None, "--socket", help="Running daemon socket path"),  # noqa: B008
+) -> None:
+    """Configure the connection used by device commands."""
+    ctx.obj = socket
+
+
 @app.command()
 def run(
+    ctx: typer.Context,
     foreground: bool = typer.Option(True, "--foreground/--daemon", "-f/-d"),  # noqa: ARG001
     verbose: bool = typer.Option(False, "--verbose", "-v"),
     config: Path | None = typer.Option(default=None, help="Config file path"),  # noqa: B008
@@ -23,161 +33,65 @@ def run(
 
     cfg = load_config(config)
     cfg.verbose = cfg.verbose or verbose
+    if ctx.obj is not None:
+        cfg.api_socket = str(ctx.obj)
     start(cfg)
 
 
 @app.command()
 def ui(
-    port: int = typer.Option(9010, "--port", "-p", help="Web UI port"),
-    host: str = typer.Option("127.0.0.1", "--host", help="Web UI bind address"),
-    no_browser: bool = typer.Option(False, "--no-browser", help="Don't open browser"),
-    verbose: bool = typer.Option(False, "--verbose", "-v"),
-    config: Path | None = typer.Option(default=None, help="Config file path"),  # noqa: B008
+    ctx: typer.Context,
+    no_browser: bool = typer.Option(False, "--no-browser", help="Print the dashboard URL only"),
 ) -> None:
-    """Start the daemon with the web UI and open a browser."""
-    import threading
+    """Open the running daemon's dashboard without starting another MIDI session."""
     import webbrowser
 
-    from blocksd.config.loader import load_config
-    from blocksd.daemon import start
+    from blocksd.cli.client import ClientError, connect
 
-    cfg = load_config(config)
-    cfg.verbose = cfg.verbose or verbose
-    cfg.web_enabled = True
-    cfg.web_host = host
-    cfg.web_port = port
-
-    url = f"http://{host}:{port}"
-    typer.echo(f"Starting blocksd web UI at {url}")
-
-    if not no_browser:
-        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
-
-    start(cfg)
+    with connect(ctx) as client:
+        response = client.request("ping")
+        url = response.get("web_url")
+        if not url:
+            raise ClientError(
+                "This daemon has no dashboard enabled. Enable web_enabled and restart it."
+            )
+        typer.echo(url)
+        if not no_browser:
+            webbrowser.open(url)
 
 
 @app.command()
 def status(
-    probe: bool = typer.Option(
-        False, "--probe", "-p", help="Connect briefly to get full device info"
-    ),
-    verbose: bool = typer.Option(False, "--verbose", "-v"),
+    ctx: typer.Context,
+    probe: bool = typer.Option(False, "--probe", "-p", help="Include daemon topology details"),
 ) -> None:
-    """Show connected devices, battery, and topology."""
-    from blocksd.topology.detector import scan_for_blocks
-
-    try:
-        pairs = scan_for_blocks()
-    except Exception as exc:
-        typer.echo("Error: Could not scan MIDI ports (is python-rtmidi installed?)")
-        raise typer.Exit(1) from exc
-
-    if not pairs:
-        typer.echo("No ROLI Blocks devices found.")
-        raise typer.Exit(0)
-
-    if probe:
-        _status_probe(pairs, verbose=verbose)
-    else:
-        _status_quick(pairs)
-
-
-def _status_quick(pairs: list) -> None:
-    """Quick status from MIDI port scan only."""
+    """Show connected devices through the running daemon."""
     from rich.console import Console
     from rich.table import Table
 
-    console = Console()
-    table = Table(title="ROLI Blocks Devices")
-    table.add_column("Port Name", style="cyan")
-    table.add_column("Input", style="dim")
-    table.add_column("Output", style="dim")
+    from blocksd.cli.client import connect
 
-    for pair in pairs:
-        table.add_row(pair.name, str(pair.input_port), str(pair.output_port))
-
-    console.print(table)
-    console.print("\n[dim]Use [bold]--probe[/bold] to connect and get full device info.[/dim]")
-
-
-def _status_probe(pairs: list, *, verbose: bool = False) -> None:  # noqa: ARG001
-    """Connect briefly to get full device info (serial, battery, topology)."""
-    import asyncio
-    import contextlib
-    import signal
-
-    from rich.console import Console
-    from rich.table import Table
-
-    from blocksd.device.models import DeviceInfo, Topology
-    from blocksd.logging import setup_logging
-    from blocksd.topology.manager import TopologyManager
-
-    setup_logging(verbose=verbose)
-    console = Console()
-    manager = TopologyManager()
-    devices_seen: dict[int, DeviceInfo] = {}
-    topology_seen: Topology | None = None
-
-    def on_device(dev: DeviceInfo) -> None:
-        devices_seen[dev.uid] = dev
-
-    def on_topology(topo: Topology) -> None:
-        nonlocal topology_seen
-        topology_seen = topo
-
-    manager.on_device_added.append(on_device)
-    manager.on_topology_changed.append(on_topology)
-
-    async def run() -> None:
-        loop = asyncio.get_running_loop()
-        stop = asyncio.Event()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, stop.set)
-
-        task = asyncio.create_task(manager.run())
-        console.print("[dim]Probing devices... (Ctrl+C to stop, or wait 8s)[/dim]")
-
-        with contextlib.suppress(TimeoutError):
-            await asyncio.wait_for(stop.wait(), timeout=8.0)
-
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
-
-    asyncio.run(run())
-
-    if not devices_seen:
-        console.print("[yellow]No devices responded to probe.[/yellow]")
+    with connect(ctx) as client:
+        response = client.request("topology" if probe else "discover")
+    devices = response["devices"]
+    if not devices:
+        typer.echo("blocksd is running. No ROLI Blocks devices are connected.")
         return
-
     table = Table(title="ROLI Blocks Devices")
-    table.add_column("Type", style="cyan bold")
-    table.add_column("Serial", style="dim")
+    table.add_column("Device", style="cyan")
+    table.add_column("Serial")
     table.add_column("Battery", justify="right")
-    table.add_column("Master", justify="center")
-    table.add_column("Version", style="dim")
-
-    for dev in devices_seen.values():
-        charging = " ⚡" if dev.battery_charging else ""
-        if dev.battery_level > 50:
-            battery_style = "green"
-        elif dev.battery_level > 20:
-            battery_style = "yellow"
-        else:
-            battery_style = "red"
+    table.add_column("Firmware")
+    for device in devices:
+        battery = f"{device['battery_level']}%"
+        if device["battery_charging"]:
+            battery += " charging"
         table.add_row(
-            str(dev.block_type),
-            dev.serial,
-            f"[{battery_style}]{dev.battery_level}%{charging}[/{battery_style}]",
-            "★" if dev.is_master else "",
-            dev.version or "—",
+            device["name"], device["serial"], battery, device["firmware_version"] or "unknown"
         )
-
-    console.print(table)
-
-    if topology_seen and topology_seen.connections:
-        console.print(f"\n[dim]Topology: {len(topology_seen.connections)} connection(s)[/dim]")
+    Console().print(table)
+    if probe:
+        typer.echo(f"DNA connections: {len(response['connections'])}")
 
 
 # Register subcommands
