@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import pytest
+
 from blocksd.protocol.checksum import calculate_checksum
 from blocksd.protocol.constants import (
     PROTOCOL_VERSION,
@@ -345,6 +347,48 @@ class TestACKDecoding:
 
 
 class TestConfigDecoding:
+    @pytest.mark.parametrize("command", [5, 6, 8, 15])
+    def test_unknown_config_payload_cannot_become_device_messages(self, command: int) -> None:
+        w = _make_writer()
+        w.write_bits(MessageFromDevice.PACKET_ACK, BitSize.MESSAGE_TYPE)
+        w.write_bits(42, BitSize.PACKET_COUNTER)
+        w.write_bits(MessageFromDevice.CONFIG_MESSAGE, BitSize.MESSAGE_TYPE)
+        w.write_bits(command, BitSize.CONFIG_COMMAND)
+        # These bits belong to an unknown config body, not a name message.
+        w.write_bits(MessageFromDevice.DEVICE_NAME, BitSize.MESSAGE_TYPE)
+        w.write_bits(1, BitSize.TOPOLOGY_INDEX)
+        w.write_bits(4, 7)
+        for char in "fake":
+            w.write_bits(ord(char), 7)
+
+        handler = RecordingHandler()
+        assert decode_packet(_build_device_packet(1, w), handler)
+        assert handler.calls == [("packet_ack", (1, 42))]
+
+        next_packet = _make_writer()
+        next_packet.write_bits(MessageFromDevice.CONFIG_MESSAGE, BitSize.MESSAGE_TYPE)
+        next_packet.write_bits(ConfigCommand.FACTORY_SYNC_END, BitSize.CONFIG_COMMAND)
+        assert decode_packet(_build_device_packet(1, next_packet), handler)
+        assert handler.calls[-1] == ("config_factory_sync_end", (1,))
+
+    def test_captured_lumi_factory_settings(self) -> None:
+        # LUMI 1.3.9 hardware capture, 2026-09-07: one packet with five settings.
+        packet = bytes.fromhex(
+            "f0002110775600000000001331484000000000000000000002000000004306400100"
+            "000000000000000600000018440000000000707f7f7f7f020000004021050000000020"
+            "7d7f7f7f2f000000000c4a70010000000200000060030000000040f7"
+        )
+        handler = RecordingHandler()
+        assert decode_packet(packet, handler)
+        assert handler.calls == [
+            ("config_factory_sync_reset", (22,)),
+            ("config_update", (22, 2, 1, 0, 2)),
+            ("config_update", (22, 3, 48, 0, 96)),
+            ("config_update", (22, 4, 0, -4, 5)),
+            ("config_update", (22, 5, 0, -11, 11)),
+            ("config_update", (22, 9, 15, 1, 15)),
+        ]
+
     def test_config_update(self) -> None:
         w = _make_writer()
         w.write_bits(MessageFromDevice.CONFIG_MESSAGE, BitSize.MESSAGE_TYPE)

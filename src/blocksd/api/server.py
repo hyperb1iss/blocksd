@@ -81,6 +81,7 @@ class _ApiTransport(ApiCommands):
         self._manager.on_button_event.append(self._broadcaster.broadcast_button)
         self._manager.on_topology_changed.append(self._broadcaster.broadcast_topology_changed)
         self._manager.on_config_changed.append(self._on_config_changed)
+        self._manager.on_config_reset.append(self._on_config_reset)
         self._events_attached = True
 
     def _on_config_changed(self, uid: int, config: ConfigValue) -> None:
@@ -88,6 +89,10 @@ class _ApiTransport(ApiCommands):
         self._broadcaster.broadcast_config_changed(
             uid, config, serial=device.serial if device else None
         )
+
+    def _on_config_reset(self, uid: int) -> None:
+        device = self._manager.find_device(uid)
+        self._broadcaster.broadcast_config_reset(uid, serial=device.serial if device else None)
 
     async def stop(self) -> None:
         """Stop accepting work, join all clients, and release callback ownership."""
@@ -108,6 +113,7 @@ class _ApiTransport(ApiCommands):
             self._manager.on_button_event.remove(self._broadcaster.broadcast_button)
             self._manager.on_topology_changed.remove(self._broadcaster.broadcast_topology_changed)
             self._manager.on_config_changed.remove(self._on_config_changed)
+            self._manager.on_config_reset.remove(self._on_config_reset)
             self._events_attached = False
 
 

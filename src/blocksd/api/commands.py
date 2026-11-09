@@ -229,9 +229,17 @@ class ApiCommands:
     def _handle_config_get(self, msg: dict[str, Any]) -> dict[str, Any]:
         uid = self._target_uid(msg)
         msg_id = msg.get("id")
+        device = self._manager.find_device(uid)
+        refresh = msg.get("refresh", False)
+        if type(refresh) is not bool:
+            raise ValueError("refresh must be a boolean")
+        if refresh:
+            if device is None:
+                raise ValueError("Device is not connected")
+            if not self._manager.request_config_sync(uid):
+                raise OSError("Could not request settings; device is not ready or MIDI send failed")
 
         values = self._manager.get_config(uid)
-        device = self._manager.find_device(uid)
         resp: dict[str, Any] = {
             "type": "config_values",
             "uid": uid,

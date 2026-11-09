@@ -27,6 +27,7 @@ export function useDeviceSettings(device: Device) {
       const result = await request<ConfigValuesResponse>({
         type: 'config_get',
         serial: device.serial,
+        refresh: true,
       });
       if (!active.current || current !== generation.current) return;
       setValues(result.values);
@@ -59,6 +60,17 @@ export function useDeviceSettings(device: Device) {
   useEffect(
     () =>
       subscribe(msg => {
+        if (msg.type === 'config_reset' && msg.serial === device.serial) {
+          generation.current += 1;
+          for (const timer of timers.current.values()) clearTimeout(timer);
+          timers.current.clear();
+          setValues([]);
+          setSchema([]);
+          setWrites({});
+          setError('');
+          setLoading(false);
+          return;
+        }
         if (msg.type !== 'config_changed' || msg.serial !== device.serial) return;
         const metadata = msg.schema;
         if (metadata) {

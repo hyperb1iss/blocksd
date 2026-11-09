@@ -66,6 +66,13 @@ class HostPacketBuilder:
         self._writer.write_bits(MessageFromHost.CONFIG_MESSAGE, BitSize.MESSAGE_TYPE)
         self._writer.write_bits(ConfigCommand.REQUEST_USER_SYNC, BitSize.CONFIG_COMMAND)
 
+    def config_request_factory_sync(self) -> None:
+        """Request active system settings, including their current ranges."""
+        from blocksd.protocol.constants import ConfigCommand
+
+        self._writer.write_bits(MessageFromHost.CONFIG_MESSAGE, BitSize.MESSAGE_TYPE)
+        self._writer.write_bits(ConfigCommand.REQUEST_FACTORY_SYNC, BitSize.CONFIG_COMMAND)
+
     def build(self) -> bytes:
         """Finalize and return the complete SysEx message."""
         payload = self._writer.get_data()
@@ -122,6 +129,14 @@ def build_config_request_user_sync(device_index: int) -> bytes:
     builder = HostPacketBuilder()
     builder.write_sysex_header(device_index)
     builder.config_request_user_sync()
+    return builder.build()
+
+
+def build_config_request_factory_sync(device_index: int) -> bytes:
+    """Build a factory configuration read request, not a factory reset."""
+    builder = HostPacketBuilder()
+    builder.write_sysex_header(device_index)
+    builder.config_request_factory_sync()
     return builder.build()
 
 

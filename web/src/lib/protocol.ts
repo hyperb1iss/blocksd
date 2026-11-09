@@ -6,7 +6,10 @@ export type Request =
   | { type: 'ping'; id?: string }
   | { type: 'discover'; id?: string }
   | { type: 'topology'; id?: string }
-  | { type: 'config_get'; uid: number; id?: string }
+  | ({ type: 'config_get'; refresh?: boolean; id?: string } & (
+      | { uid: number }
+      | { serial: string }
+    ))
   | { type: 'config_set'; uid: number; item: number; value: number; id?: string }
   | { type: 'frame'; uid: number; pixels: string; id?: string }
   | { type: 'brightness'; uid: number; value: number }
@@ -83,6 +86,12 @@ export interface ConfigChangedEvent {
   value: number;
 }
 
+export interface ConfigResetEvent {
+  type: 'config_reset';
+  uid: number;
+  serial?: string;
+}
+
 export interface TouchEvent {
   type: 'touch';
   uid: number;
@@ -106,6 +115,7 @@ export type ServerMessage =
   | DeviceRemovedEvent
   | TopologyChangedEvent
   | ConfigChangedEvent
+  | ConfigResetEvent
   | TouchEvent
   | { type: 'subscribed'; events: string[] }
   | { type: 'error'; message: string; id?: string };
