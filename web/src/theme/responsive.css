@@ -48,14 +48,11 @@
     gap: 10px;
     margin-left: 4px;
   }
-  .brand-subtitle {
-    font-size: 8px;
-  }
   .nav-item {
     padding: 0 9px;
     font-size: 12px;
   }
-  .sidebar-devices > .eyebrow {
+  .sidebar-devices > .sidebar-section-title {
     font-size: 7px;
     letter-spacing: 1.2px;
   }
@@ -95,9 +92,6 @@
     grid-column: 1;
     margin-top: 5px;
   }
-  .instrument-tip {
-    display: none;
-  }
   .surface-caption-end {
     display: none;
   }
@@ -125,9 +119,6 @@
   .brand {
     margin: 0 0 22px;
     font-size: 25px;
-  }
-  .brand-subtitle {
-    font-size: 9px;
   }
   .sidebar nav {
     grid-template-columns: 1fr 1fr;
@@ -157,12 +148,6 @@
   .page-heading h1 {
     font-size: 31px;
     letter-spacing: -1.3px;
-  }
-  .page-heading p {
-    font-size: 11px;
-  }
-  .page-index {
-    display: none;
   }
   .device-strip {
     gap: 10px;
@@ -260,10 +245,6 @@
   }
   .diagnostics dl {
     grid-template-columns: 1fr 1fr;
-  }
-  .workspace-footer {
-    padding: 20px;
-    font-size: 8px;
   }
   .restore-setting {
     min-height: 54px;

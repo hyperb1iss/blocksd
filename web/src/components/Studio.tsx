@@ -46,9 +46,7 @@ export function Studio() {
             <i />
             <i />
           </span>
-          <span>
-            blocksd<span className="brand-subtitle">your hardware. your sound.</span>
-          </span>
+          <span>blocksd</span>
         </Link>
         <nav aria-label="main navigation">
           <Link
@@ -73,7 +71,7 @@ export function Studio() {
           </Link>
         </nav>
         <div className="sidebar-devices">
-          <div className="eyebrow">connected hardware</div>
+          <div className="sidebar-section-title">connected hardware</div>
           {devices.length ? (
             devices.map(item => (
               <Link
@@ -100,7 +98,6 @@ export function Studio() {
             <span className={`signal-dot ${connected ? 'active' : ''}`} />
             {connected ? 'daemon connected' : 'reconnecting to daemon'}
           </div>
-          <span className="sidebar-caption">made for your Linux studio</span>
         </div>
       </aside>
       <div className="workspace-shell">
@@ -119,19 +116,7 @@ export function Studio() {
         </header>
         <main id="workspace" className="workspace">
           <div className="page-heading">
-            <div>
-              <span className="eyebrow">ROLI Blocks on Linux</span>
-              <h1>{presetsPage ? 'your presets' : 'your devices'}</h1>
-              <p>
-                {presetsPage
-                  ? 'save, recall, and restore your device setups.'
-                  : 'configure expression and recall your setup.'}
-              </p>
-            </div>
-            <span className="page-index" aria-hidden="true">
-              {presetsPage ? '02' : '01'}
-              <span>/ studio</span>
-            </span>
+            <h1>{presetsPage ? 'presets' : 'devices'}</h1>
           </div>
           {!connected && (
             <div className="connection-banner" role="status">
@@ -186,10 +171,7 @@ export function Studio() {
                     <i />
                     <i />
                   </div>
-                  <span className="eyebrow">
-                    {serial && connected ? 'device disconnected' : 'your studio starts here'}
-                  </span>
-                  <h2>{serial && connected ? 'this Block is away.' : 'connect a ROLI Block.'}</h2>
+                  <h2>{serial && connected ? 'device disconnected' : 'connect a ROLI Block'}</h2>
                   <p>
                     {serial && connected
                       ? 'reconnect your device or choose another connected Block above.'
@@ -239,12 +221,6 @@ export function Studio() {
             </div>
           </details>
         </main>
-        <footer className="workspace-footer">
-          <span>
-            blocksd <span className="footer-divider">/</span> a little more expression.
-          </span>
-          <span>local. open. yours.</span>
-        </footer>
       </div>
     </div>
   );
@@ -280,6 +256,7 @@ function DeviceWorkspace({
   const groups = [
     ...new Set(settings.values.map(value => metadata.get(value.item)?.group ?? 'device settings')),
   ];
+  const activeGroup = groups.includes(group) ? group : 'all';
   const presetPending = library.presets.some(
     preset =>
       preset.serial === device.serial && library.applications[preset.id]?.status === 'pending',
@@ -287,14 +264,15 @@ function DeviceWorkspace({
   const pending =
     presetPending || Object.values(settings.writes).some(write => write.status === 'pending');
   const filtered = settings.values.filter(
-    value => group === 'all' || (metadata.get(value.item)?.group ?? 'device settings') === group,
+    value =>
+      activeGroup === 'all' ||
+      (metadata.get(value.item)?.group ?? 'device settings') === activeGroup,
   );
   return (
     <>
       <section className="device-workspace" aria-label={`${device.name} settings`}>
         <div className="instrument-panel">
           <div className="instrument-header">
-            <span className="eyebrow">selected instrument</span>
             <span className="badge">
               <span className="signal-dot active" />
               connected
@@ -321,21 +299,10 @@ function DeviceWorkspace({
               <dd>{device.serial}</dd>
             </div>
           </dl>
-          <div className="instrument-tip">
-            <span aria-hidden="true">↗</span>
-            <p>
-              your sound starts in your DAW.
-              <br />
-              your feel starts here.
-            </p>
-          </div>
         </div>
         <div className="settings-panel">
           <div className="section-heading">
-            <div>
-              <span className="eyebrow">make it feel right</span>
-              <h2>device settings</h2>
-            </div>
+            <h2>device settings</h2>
             <button
               className="button subtle"
               type="button"
@@ -356,14 +323,18 @@ function DeviceWorkspace({
           )}
           {groups.length > 1 && (
             <fieldset className="setting-filters" aria-label="filter settings">
-              <button type="button" aria-pressed={group === 'all'} onClick={() => setGroup('all')}>
+              <button
+                type="button"
+                aria-pressed={activeGroup === 'all'}
+                onClick={() => setGroup('all')}
+              >
                 all settings
               </button>
               {groups.map(item => (
                 <button
                   key={item}
                   type="button"
-                  aria-pressed={group === item}
+                  aria-pressed={activeGroup === item}
                   onClick={() => setGroup(item)}
                 >
                   {item}
@@ -378,8 +349,8 @@ function DeviceWorkspace({
             </div>
           ) : !settings.values.length ? (
             <div className="settings-empty">
-              <h3>no settings reported yet.</h3>
-              <p>your device may still be syncing, or may not expose configurable settings.</p>
+              <h3>no settings available</h3>
+              <p>the current device program has not reported configurable settings.</p>
               <button
                 type="button"
                 className="button secondary"
