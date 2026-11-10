@@ -70,11 +70,12 @@ jobs:
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
 
   github-release:
-    uses: hyperb1iss/shared-workflows/.github/workflows/github-release.yml@9edda2222785fe0351a26a07bf26a3385874d288 # v1
+    uses: hyperb1iss/shared-workflows/.github/workflows/github-release.yml@75ee6e5b4d8962b8feeba70755d5cd198745767e # v2
     needs: [pypi]
     with:
       attach-artifacts: true
       artifact-pattern: blocksd-distributions
+      artifact-mode: files
       release-notes-provider: anthropic
       release-notes-model: claude-opus-5
     permissions:
