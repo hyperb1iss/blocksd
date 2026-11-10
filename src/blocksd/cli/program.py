@@ -72,7 +72,7 @@ def _read_sources(file: Path, extra: list[Path]) -> tuple[str, dict[str, str]]:
     if sum(path.stat().st_size for path in extra) > MAX_SOURCE_BYTES:
         raise ValueError("Source and includes exceed 256 KiB")
     for path in extra:
-        content = path.read_text(encoding="utf-8")
+        content = path.read_text(encoding="utf-8-sig")
         if path.name == file.name or (path.name in includes and includes[path.name] != content):
             raise ValueError(f"Duplicate source filename: {path.name}")
         includes[path.name] = content

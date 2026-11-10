@@ -145,6 +145,11 @@ def test_explicit_heap_overrides_sdk_default():
     assert struct.unpack_from("<H", code, 8)[0] == 128
 
 
+def test_explicit_zero_heap_preserves_sdk_rejection():
+    with pytest.raises(ValueError, match="Expected an integer constant"):
+        compile_source("#heapsize: 0\nvoid repaint() {}")
+
+
 def test_windows_source_and_nested_includes_with_bom():
     code = compile_source(
         '\ufeff#include "draw.littlefoot"\r\nvoid repaint() { draw(); }\r\n',

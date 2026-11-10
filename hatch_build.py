@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sysconfig
@@ -14,7 +15,16 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
 class CustomBuildHook(BuildHookInterface):
     def dependencies(self) -> list[str]:
-        if self.target_name == "wheel" and shutil.which("cmake") is None:
+        if self.target_name != "wheel":
+            return []
+        cmake = shutil.which("cmake")
+        if cmake is None:
+            return ["cmake>=3.24"]
+        version = subprocess.run(  # noqa: S603 - fixed command using the resolved build tool
+            [cmake, "--version"], check=True, capture_output=True, text=True
+        )
+        match = re.search(r"cmake version (\d+)\.(\d+)", version.stdout)
+        if match is None or tuple(map(int, match.groups())) < (3, 24):
             return ["cmake>=3.24"]
         return []
 
