@@ -86,7 +86,11 @@ class TouchEvent:
         is_start: bool,
         is_end: bool,
     ) -> TouchEvent:
-        """Create from raw integer values (12-bit x/y, 8-bit z/velocity)."""
+        """Create from raw integer values (12-bit x/y, 8-bit z/velocity).
+
+        Velocities are signed 8-bit values, matching the SDK's
+        ``IntegerWithBitSize::toBipolarFloat``.
+        """
         return cls(
             uid=uid,
             timestamp=timestamp,
@@ -94,12 +98,18 @@ class TouchEvent:
             x=x / 4095.0,
             y=y / 4095.0,
             z=z / 255.0,
-            vx=(vx - 128) / 127.0 if vx else 0.0,
-            vy=(vy - 128) / 127.0 if vy else 0.0,
-            vz=(vz - 128) / 127.0 if vz else 0.0,
+            vx=_bipolar8(vx),
+            vy=_bipolar8(vy),
+            vz=_bipolar8(vz),
             is_start=is_start,
             is_end=is_end,
         )
+
+
+def _bipolar8(raw: int) -> float:
+    """Map a two's complement 8-bit value to [-1.0, 127/128]."""
+    signed = raw - 256 if raw & 0x80 else raw
+    return signed / 128.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +120,7 @@ class ButtonEvent:
     timestamp: int
     button_id: int
     is_down: bool
+    function: str | None = None  # SDK button function, e.g. "mode"
 
 
 @dataclass(frozen=True, slots=True)

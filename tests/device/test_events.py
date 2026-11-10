@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from blocksd.device.models import ButtonEvent, ConfigValue, TouchEvent
+from blocksd.device.models import BlockType, ButtonEvent, ConfigValue, TouchEvent
+from blocksd.device.registry import button_function
 
 
 class TestTouchEvent:
@@ -25,10 +26,22 @@ class TestTouchEvent:
         assert event.y == 1.0
         assert event.z == 1.0
 
-    def test_from_raw_velocity(self):
-        event = TouchEvent.from_raw(1, 0, 0, 0, 0, 0, 128, 255, 0, False, False)
-        assert event.vx == 0.0  # 128 = center = 0
-        assert event.vy > 0  # 255 = max positive
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            # Golden values from the SDK's toBipolarFloat: (int32)(raw << 24) / 2^31.
+            (0x00, 0.0),
+            (0x01, 1 / 128),
+            (0x40, 0.5),
+            (0x7F, 127 / 128),
+            (0x80, -1.0),
+            (0xC0, -0.5),
+            (0xFF, -1 / 128),
+        ],
+    )
+    def test_from_raw_velocity_is_signed_8bit(self, raw: int, expected: float):
+        event = TouchEvent.from_raw(1, 0, 0, 0, 0, 0, raw, raw, raw, False, False)
+        assert (event.vx, event.vy, event.vz) == (expected, expected, expected)
 
     def test_is_start(self):
         event = TouchEvent.from_raw(1, 100, 3, 0, 0, 0, 0, 0, 0, True, False)
@@ -59,6 +72,32 @@ class TestButtonEvent:
         event = ButtonEvent(uid=1, timestamp=0, button_id=0, is_down=False)
         with pytest.raises(AttributeError):
             event.__setattr__("is_down", True)
+
+
+class TestButtonFunction:
+    @pytest.mark.parametrize(
+        ("block_type", "button_id", "expected"),
+        [
+            (BlockType.LUMI_KEYS, 0, "mode"),
+            (BlockType.LUMI_KEYS, 1, "down"),
+            (BlockType.LUMI_KEYS, 2, "up"),
+            (BlockType.LIGHTPAD_M, 0, "mode"),
+            (BlockType.LOOP, 5, "play_or_pause"),
+            (BlockType.DEV_CTRL, 7, "button7"),
+            (BlockType.TOUCH, 9, "up"),
+        ],
+    )
+    def test_matches_sdk_button_order(
+        self, block_type: BlockType, button_id: int, expected: str
+    ) -> None:
+        assert button_function(block_type, button_id) == expected
+
+    @pytest.mark.parametrize(
+        ("block_type", "button_id"),
+        [(BlockType.LUMI_KEYS, 3), (BlockType.LUMI_KEYS, -1), (BlockType.UNKNOWN, 0)],
+    )
+    def test_unknown_ids_have_no_function(self, block_type: BlockType, button_id: int) -> None:
+        assert button_function(block_type, button_id) is None
 
 
 class TestConfigValue:

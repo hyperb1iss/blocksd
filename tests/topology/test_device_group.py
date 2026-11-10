@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import TYPE_CHECKING
 
 from blocksd.led.bitmap import BLUE, RED, LEDGrid
 from blocksd.protocol.checksum import calculate_checksum
@@ -20,6 +21,9 @@ from blocksd.topology.device_group import (
     DeviceGroup,
     GroupState,
 )
+
+if TYPE_CHECKING:
+    from blocksd.device.models import ButtonEvent
 
 # ── Mock MIDI connection ──────────────────────────────────────────────────────
 
@@ -122,6 +126,24 @@ def _decode_packet_index(packet: bytes) -> int:
     reader = Packed7BitReader(payload)
     reader.read_bits(BitSize.MESSAGE_TYPE)
     return reader.read_bits(BitSize.PACKET_INDEX)
+
+
+def _build_button_packet(
+    device_index: int, button_id: int, *, is_down: bool, packet_timestamp: int = 5000
+) -> bytes:
+    """Build a fake control button packet with a 3 ms timestamp offset."""
+    w = Packed7BitWriter(64)
+    w.write_bits(packet_timestamp, BitSize.PACKET_TIMESTAMP)
+    message = (
+        MessageFromDevice.CONTROL_BUTTON_DOWN if is_down else MessageFromDevice.CONTROL_BUTTON_UP
+    )
+    w.write_bits(message, BitSize.MESSAGE_TYPE)
+    w.write_bits(3, BitSize.TIMESTAMP_OFFSET)
+    w.write_bits(button_id, BitSize.CONTROL_BUTTON_ID)
+
+    payload = w.get_data()
+    checksum = calculate_checksum(payload)
+    return ROLI_SYSEX_HEADER + bytes([device_index | 0x40]) + payload + bytes([checksum, 0xF7])
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -330,3 +352,33 @@ class TestAPIActivation:
 
         # Should have sent endAPIMode + beginAPIMode
         assert len(conn.sent) == 2
+
+
+class TestButtonEvents:
+    def _running_group(self, serials: list[str]) -> tuple[DeviceGroup, list[ButtonEvent]]:
+        group = DeviceGroup(MockMidiConnection())
+        group.state = GroupState.REQUESTING_TOPOLOGY
+        group._process_message(_build_topology_packet(serials))
+        events: list[ButtonEvent] = []
+        group.on_button_event.append(events.append)
+        return group, events
+
+    def test_lumi_button_carries_sdk_function(self) -> None:
+        group, events = self._running_group(["LKB0000000000000"])
+
+        group._process_message(_build_button_packet(0, 2, is_down=True))
+        group._process_message(_build_button_packet(0, 2, is_down=False))
+
+        uid = next(iter(group._devices))
+        assert [(e.uid, e.button_id, e.function, e.is_down) for e in events] == [
+            (uid, 2, "up", True),
+            (uid, 2, "up", False),
+        ]
+        assert events[0].timestamp == 5003
+
+    def test_unmapped_button_keeps_raw_id(self) -> None:
+        group, events = self._running_group(["LPM0000000000000"])
+
+        group._process_message(_build_button_packet(0, 7, is_down=True))
+
+        assert [(e.button_id, e.function) for e in events] == [(7, None)]

@@ -17,15 +17,15 @@ These messages originate from the device and are received by blocksd.
 | `0x05` | deviceTopologyEnd      | signals end of multi-packet topology                              |
 | `0x06` | deviceVersion          | index + version string                                            |
 | `0x07` | deviceName             | index + name string                                               |
-| `0x10` | touchStart             | 7b devIdx, 5b touchIdx, 12b x, 12b y, 8b z                        |
+| `0x10` | touchStart             | 5b timeOffset, 5b touchIdx, 12b x, 12b y, 8b z                    |
 | `0x11` | touchMove              | same as touchStart                                                |
 | `0x12` | touchEnd               | same as touchStart                                                |
 | `0x13` | touchStartWithVelocity | + 8b vx, 8b vy, 8b vz                                             |
 | `0x14` | touchMoveWithVelocity  | + velocity                                                        |
 | `0x15` | touchEndWithVelocity   | + velocity                                                        |
 | `0x18` | configMessage          | config command + data                                             |
-| `0x20` | controlButtonDown      | 7b devIdx, 12b buttonID                                           |
-| `0x21` | controlButtonUp        | 7b devIdx, 12b buttonID                                           |
+| `0x20` | controlButtonDown      | 5b timeOffset, 12b buttonID                                       |
+| `0x21` | controlButtonUp        | 5b timeOffset, 12b buttonID                                       |
 | `0x28` | programEventMessage    | 3 x 32b integers                                                  |
 | `0x30` | logMessage             | string data                                                       |
 
