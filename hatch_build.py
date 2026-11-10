@@ -13,6 +13,11 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
 
 class CustomBuildHook(BuildHookInterface):
+    def dependencies(self) -> list[str]:
+        if self.target_name == "wheel" and shutil.which("cmake") is None:
+            return ["cmake>=3.24"]
+        return []
+
     def initialize(self, _version: str, build_data: dict[str, Any]) -> None:
         if self.target_name != "wheel":
             return

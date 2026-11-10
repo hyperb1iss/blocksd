@@ -5,7 +5,7 @@ pkgname=blocksd-git
 pkgver=r0
 pkgrel=2
 pkgdesc="Linux daemon for ROLI Blocks devices: keepalive, LED control, topology management (git)"
-arch=('any')
+arch=('x86_64' 'aarch64')
 url="https://github.com/hyperb1iss/blocksd"
 license=('ISC')
 depends=(
@@ -17,6 +17,7 @@ depends=(
     'python-websockets>=17.2'
 )
 makedepends=(
+    'cmake'
     'git'
     'python-build'
     'python-installer'
