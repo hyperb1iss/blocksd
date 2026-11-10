@@ -182,5 +182,5 @@ python-version = "3.13"
 include = ["src/blocksd/device/connection.py", "src/blocksd/topology/detector.py"]
 
 [tool.ty.overrides.rules]
-unresolved-import = "ignore"
+import-not-found = "ignore"
 unresolved-attribute = "ignore"
