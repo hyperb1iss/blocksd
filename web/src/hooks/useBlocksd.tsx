@@ -10,7 +10,7 @@ type PendingRequest = {
 interface BlocksdState {
   connected: boolean;
   send: (msg: Record<string, unknown>) => boolean;
-  request: <T>(msg: Record<string, unknown>) => Promise<T>;
+  request: <T>(msg: Record<string, unknown>, options?: { timeoutMs?: number }) => Promise<T>;
   sendBinary: (data: ArrayBuffer) => void;
   subscribe: (listener: MessageListener) => () => void;
 }
@@ -89,19 +89,22 @@ export function BlocksdProvider({ children }: { children: React.ReactNode }) {
     wsRef.current.send(JSON.stringify(msg));
     return true;
   }, []);
-  const request = useCallback(<T,>(msg: Record<string, unknown>): Promise<T> => {
-    if (wsRef.current?.readyState !== WebSocket.OPEN)
-      return Promise.reject(new Error('daemon is disconnected.'));
-    const id = `dashboard-${++sequence.current}`;
-    return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        pending.current.delete(id);
-        reject(new Error('no response from the daemon. try refreshing.'));
-      }, 8000);
-      pending.current.set(id, { resolve: value => resolve(value as T), reject, timer });
-      wsRef.current?.send(JSON.stringify({ ...msg, id }));
-    });
-  }, []);
+  const request = useCallback(
+    <T,>(msg: Record<string, unknown>, options?: { timeoutMs?: number }): Promise<T> => {
+      if (wsRef.current?.readyState !== WebSocket.OPEN)
+        return Promise.reject(new Error('daemon is disconnected.'));
+      const id = `dashboard-${++sequence.current}`;
+      return new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          pending.current.delete(id);
+          reject(new Error('no response from the daemon. try refreshing.'));
+        }, options?.timeoutMs ?? 8000);
+        pending.current.set(id, { resolve: value => resolve(value as T), reject, timer });
+        wsRef.current?.send(JSON.stringify({ ...msg, id }));
+      });
+    },
+    [],
+  );
   const sendBinary = useCallback((data: ArrayBuffer) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(data);
   }, []);

@@ -35,6 +35,7 @@ from blocksd.led.program import LEDProgram
 from blocksd.littlefoot.keys import KEY_HEAP_SIZE, key_led_program
 from blocksd.littlefoot.lifecycle import BITMAP_RENDERER, KEY_RENDERER
 from blocksd.littlefoot.programs import bitmap_led_program
+from blocksd.littlefoot.upload import ProgramStatus, ProgramUpload, validate_program
 from blocksd.protocol.builder import (
     build_begin_api_mode,
     build_config_request,
@@ -107,6 +108,8 @@ class DeviceGroup:
         self._end_api_sent: set[int] = set()  # UIDs that received endAPIMode this session
         self._heaps: dict[int, RemoteHeap] = {}  # uid → RemoteHeap
         self._led_programs: dict[int, LEDProgram] = {}
+        self._custom_programs: dict[int, ProgramUpload] = {}
+        self._compiling: dict[int, tuple[str, RemoteHeap]] = {}
         self._config: dict[int, dict[int, ConfigValue]] = {}  # uid → {item → ConfigValue}
 
         # Timing
@@ -309,6 +312,69 @@ class DeviceGroup:
         """Get the RemoteHeap for a device, or None if not API-connected."""
         return self._heaps.get(uid)
 
+    def program_status(self, uid: int) -> ProgramStatus:
+        if uid not in self._heaps:
+            raise ValueError("Device is not ready")
+        if pending := self._compiling.get(uid):
+            return ProgramStatus("custom", pending[0], "compiling", "Compiling LittleFoot source.")
+        if upload := self._custom_programs.get(uid):
+            return upload.status()
+        if renderer := self._led_programs.get(uid):
+            return renderer.status()
+        return ProgramStatus()
+
+    def begin_program_load(self, uid: int, name: str) -> RemoteHeap:
+        heap = self._heaps.get(uid)
+        if heap is None:
+            raise ValueError("Device is not ready")
+        if uid in self._compiling:
+            raise ValueError("A program is already being compiled for this device")
+        self._compiling[uid] = (name, heap)
+        return heap
+
+    def cancel_program_load(self, uid: int, heap: RemoteHeap) -> None:
+        if (pending := self._compiling.get(uid)) and pending[1] is heap:
+            self._compiling.pop(uid)
+
+    def load_program(self, uid: int, code: bytes, name: str) -> None:
+        heap = self._heaps.get(uid)
+        if heap is None:
+            raise ValueError("Device is not ready")
+        validate_program(code, heap.size)
+        self._led_programs.pop(uid, None)
+        heap.reset_device_state()
+        self._custom_programs[uid] = ProgramUpload(heap, code, name)
+        self._clear_program_settings(uid)
+        self._flush_heap(uid, heap, time.monotonic())
+
+    def reset_program(self, uid: int) -> None:
+        """Restore the saved program using the SDK end/begin API sequence."""
+        dev = self._devices.get(uid)
+        heap = self._heaps.get(uid)
+        if dev is None or heap is None:
+            raise ValueError("Device is not ready")
+        if uid in self._compiling:
+            raise ValueError("Wait for compilation to finish before restoring the saved program")
+        if not self.conn.send(build_end_api_mode(dev.topology_index)):
+            raise OSError("Could not request the saved program")
+        # Once API mode ends, old packets must never overwrite the saved program.
+        heap.reset()
+        self._led_programs.pop(uid, None)
+        self._custom_programs.pop(uid, None)
+        self._clear_program_settings(uid)
+        if not self.conn.send(build_begin_api_mode(dev.topology_index)):
+            self._remove_device(uid)
+            self._schedule_topology_request()
+            raise OSError(
+                "Saved program requested, but API reconnection failed; reconnect the device"
+            )
+        self.request_config_sync(uid)
+
+    def _clear_program_settings(self, uid: int) -> None:
+        self._config.pop(uid, None)
+        for cb in self.on_config_reset:
+            cb(uid)
+
     def set_led_data(self, uid: int, pixel_data: bytes | bytearray) -> bool:
         """Write RGB565 LED pixel data to a device's heap.
 
@@ -321,6 +387,8 @@ class DeviceGroup:
         if dev is None or heap is None or not supports_bitmap_led_program(dev.block_type):
             return False
         if len(pixel_data) != 450:
+            return False
+        if uid in self._custom_programs or uid in self._compiling:
             return False
         if uid not in self._led_programs:
             self._led_programs[uid] = BufferedLEDProgram(
@@ -341,6 +409,8 @@ class DeviceGroup:
         except ValueError:
             return False
         if len(version) != 3 or version < (1, 3, 0) or len(pixel_data) != KEY_HEAP_SIZE:
+            return False
+        if uid in self._custom_programs or uid in self._compiling:
             return False
         if uid not in self._led_programs:
             self._led_programs[uid] = LEDProgram(
@@ -365,6 +435,9 @@ class DeviceGroup:
         if dev is None:
             return
 
+        if upload := self._custom_programs.get(uid):
+            upload.advance()
+
         if (program := self._led_programs.get(uid)) and (query := program.advance(now)):
             self.conn.send(build_program_event(dev.topology_index, query))
 
@@ -377,6 +450,14 @@ class DeviceGroup:
             if packet is None:
                 break
             self.conn.send(packet)
+
+        if (
+            upload
+            and not upload.config_requested
+            and not heap.is_dirty
+            and heap.in_flight_count == 0
+        ):
+            upload.config_requested = self.request_config_sync(uid)
 
     # ── Config management ────────────────────────────────────────────────
 
@@ -437,6 +518,8 @@ class DeviceGroup:
         self._pings.pop(uid, None)
         self._heaps.pop(uid, None)
         self._led_programs.pop(uid, None)
+        self._custom_programs.pop(uid, None)
+        self._compiling.pop(uid, None)
         self._config.pop(uid, None)
         # NOTE: _end_api_sent is intentionally NOT cleared here.
         # If the device reappears (e.g. transient DNA glitch), we skip

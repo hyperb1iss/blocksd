@@ -7,6 +7,7 @@ import time
 from typing import TYPE_CHECKING
 
 from blocksd.littlefoot.lifecycle import RENDERER_READY_MARKER
+from blocksd.littlefoot.upload import RESPONSE_WARNING_SECONDS, ProgramStatus
 
 if TYPE_CHECKING:
     from blocksd.protocol.remote_heap import RemoteHeap
@@ -35,6 +36,8 @@ class LEDProgram:
         self._prepare_upload()
 
     def _prepare_upload(self) -> None:
+        self._started_at = time.monotonic()
+        self._first_query: float | None = None
         self.heap.set_bytes(0, bytes(self.heap.size))
         self.heap.set_bytes(0, self.code)
 
@@ -83,4 +86,35 @@ class LEDProgram:
         if self._last_query is not None and now - self._last_query < _QUERY_RETRY_INTERVAL:
             return None
         self._last_query = now
+        if self._first_query is None:
+            self._first_query = now
         return (RENDERER_READY_MARKER, self.kind, self._nonce)
+
+    def status(self, now: float | None = None) -> ProgramStatus:
+        """Report execution readiness separately from transport acknowledgement."""
+        self._sync_generation()
+        now = time.monotonic() if now is None else now
+        if self.ready:
+            state, message = "ready", "Lighting program is responding."
+        elif self._first_query is not None:
+            state, message = "waiting", "Upload acknowledged; waiting for the lighting program."
+            if now - self._first_query >= RESPONSE_WARNING_SECONDS:
+                state, message = (
+                    "unresponsive",
+                    "Upload acknowledged, but the lighting program is not responding.",
+                )
+        else:
+            state, message = "uploading", "Uploading the lighting program."
+            if now - self._started_at >= RESPONSE_WARNING_SECONDS:
+                state, message = (
+                    "unresponsive",
+                    "The device has not acknowledged the complete lighting upload.",
+                )
+        return ProgramStatus(
+            "lighting",
+            "lighting",
+            state,
+            message,
+            len(self.code),
+            int.from_bytes(self.code[8:10], "little"),
+        )

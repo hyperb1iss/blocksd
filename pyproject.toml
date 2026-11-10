@@ -52,6 +52,16 @@ Changelog = "https://github.com/hyperb1iss/blocksd/releases"
 requires = ["hatchling>=1.32.0"]
 build-backend = "hatchling.build"
 
+[tool.uv]
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "hatch_build.py" },
+    { file = "native/**/*" },
+]
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/blocksd"]
 artifacts = ["src/blocksd/web/static/**"]
@@ -60,6 +70,7 @@ artifacts = ["src/blocksd/web/static/**"]
 include = [
     "/src", "/tests", "/web", "/systemd", "/docs",
     "/LICENSE", "/README.md", "/pyproject.toml", "/uv.lock", "/install.sh",
+    "/native", "/hatch_build.py",
 ]
 artifacts = ["src/blocksd/web/static/**"]
 

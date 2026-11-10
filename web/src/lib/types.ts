@@ -51,3 +51,12 @@ export interface Preset {
   values: { item: number; value: number }[];
   auto_restore: boolean;
 }
+
+export interface DeviceProgram {
+  owner: 'device' | 'lighting' | 'custom';
+  name: string | null;
+  state: 'idle' | 'compiling' | 'uploading' | 'waiting' | 'ready' | 'uploaded' | 'unresponsive';
+  message: string;
+  code_size: number;
+  heap_size: number;
+}

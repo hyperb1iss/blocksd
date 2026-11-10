@@ -78,6 +78,20 @@ def test_unanswered_challenge_retries_without_reuploading_code():
     assert program.advance(100) is None
 
 
+def test_diagnostics_distinguish_uploaded_from_executing_and_recover():
+    heap, program = make_program()
+    assert program.status().state == "uploading"
+    finish_upload(heap)
+    query = program.advance(0)
+    assert program.status(1).state == "waiting"
+    assert query is not None
+    assert program.status(11).state == "unresponsive"
+    assert "Upload acknowledged" in program.status(11).message
+    assert program.advance(11) == query
+    program.on_ready(query)
+    assert program.status(12).state == "ready"
+
+
 def test_live_frames_and_duplicate_replies_do_not_reload_or_erase_pixels():
     heap, program = make_program()
     finish_upload(heap)

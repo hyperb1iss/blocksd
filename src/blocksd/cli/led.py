@@ -54,8 +54,17 @@ def _run_with_pattern(
                 pixels=base64.b64encode(pixels).decode(),
             )
             if not result.get("accepted"):
-                raise ClientError(f"Lighting request rejected for {dev['serial']}.")
-            typer.echo(f"Frame accepted for {dev['serial']}. Visible output is device-dependent.")
+                status = client.request("program_status", serial=dev["serial"])["program"]
+                if status["owner"] == "custom":
+                    raise ClientError(
+                        f"{dev['serial']} has a custom program. Restore the saved program with 'blocksd program reset --device {dev['serial']}' before sending lighting."
+                    )
+                raise ClientError(
+                    result.get("message", f"Lighting request rejected for {dev['serial']}.")
+                )
+            from blocksd.cli.program import wait_for_program
+
+            wait_for_program(client, dev["serial"], lighting=True)
 
 
 # ── Commands ─────────────────────────────────────────────────────────────────

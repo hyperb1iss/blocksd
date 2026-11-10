@@ -47,7 +47,9 @@ Use the global `--socket PATH` option before the command to connect to a custom 
 
 ## `blocksd led`
 
-Control Lightpad grids and LUMI key colors. These commands send a frame through the running daemon and exit. Use `--device SERIAL` to select one device; otherwise lighting commands target every connected device with the requested surface. The first frame loads a LittleFoot renderer; pixel delivery waits for upload acknowledgement and a matching execution challenge reply (see [LittleFoot](../architecture/littlefoot)).
+Control Lightpad grids and LUMI key colors. These commands send a frame through the running daemon and wait for renderer readiness before exiting. Use `--device SERIAL` to select one device; otherwise lighting commands target every connected device with the requested surface. The first frame loads a LittleFoot renderer; pixel delivery waits for upload acknowledgement and a matching execution challenge reply (see [LittleFoot](../architecture/littlefoot)). Readiness establishes a responding renderer, not visible output. A missing acknowledgement or reply produces an error with a `blocksd program status` command for diagnosis.
+
+Lighting is rejected while a custom program is loaded or being compiled. Use `blocksd program reset --device SERIAL` to restore the saved device program before sending lighting frames.
 
 ### `blocksd led solid`
 
@@ -104,6 +106,45 @@ blocksd led keys rainbow
 blocksd led keys '#ff00ff'
 blocksd led keys 000000              # key lights off
 ```
+
+## `blocksd program`
+
+load temporary LittleFoot applications through the running daemon, inspect upload state, or request the device's saved program. use `--device SERIAL` when more than one device is connected. find serials with `blocksd status`.
+
+### `blocksd program load FILE`
+
+compile a `.littlefoot` source file and replace the active program on the selected device:
+
+```bash
+blocksd program load Seqoli.littlefoot --device SERIAL
+blocksd program load MyProgram.littlefoot --device SERIAL --include Helpers.littlefoot
+```
+
+the CLI collects referenced local includes inside the source file's directory, including subdirectories. repeat `--include FILE` to supply extra files by basename. conflicting duplicate names are rejected, and the combined source bundle must fit the 256 KiB limit. the standard LittleFoot library is bundled.
+
+the command waits for upload acknowledgement. acknowledgement confirms transfer only; it does not verify application execution or musical output. compilation or validation failure leaves the previous program intact. loading does not save a startup default.
+
+Dashboard metadata supports declared `int`, `float`, `bool`, and `midiNote` defaults only. live metadata editing and other types are not supported. error line numbers refer to the expanded source, including includes and generated metadata defaults. see the [LittleFoot programs guide](../guide/programs) for source preparation and device-memory limits.
+
+### `blocksd program status`
+
+print the selected device's program name, state, and diagnostic message:
+
+```bash
+blocksd program status --device SERIAL
+```
+
+custom programs report `uploaded` after complete upload acknowledgement. lighting renderers report `ready` after answering their execution challenge. `unresponsive` can mean an incomplete upload or a missing renderer reply; read the message to distinguish them. status reporting does not stop retransmission or readiness checks.
+
+### `blocksd program reset`
+
+request the device's saved program and clear blocksd's temporary program ownership:
+
+```bash
+blocksd program reset --device SERIAL
+```
+
+the command sends the SDK's end/begin API-mode sequence. success confirms that the request was sent, not that the saved program has been observed running. it is not a factory reset and does not restore an earlier temporary upload.
 
 ## `blocksd config`
 

@@ -1,0 +1,134 @@
+.program-panel {
+  margin: 24px 0;
+  padding: 24px 26px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #17121f;
+}
+.program-state {
+  color: var(--color-muted);
+  font-size: 11px;
+  text-align: right;
+}
+.program-state.ready,
+.program-state.uploaded {
+  color: var(--color-cyan);
+}
+.program-state.waiting,
+.program-state.compiling,
+.program-state.uploading,
+.program-state.unresponsive {
+  color: var(--color-yellow);
+}
+.program-current h3 {
+  font: 12px var(--font-mono);
+  overflow-wrap: anywhere;
+  margin: 20px 0 8px;
+}
+.program-current p,
+.program-note,
+.program-includes p,
+.program-restore p,
+.program-details p {
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.8;
+}
+.program-load {
+  margin-top: 20px;
+}
+.program-load > label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+.program-file-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+.program-file-row input,
+.program-includes input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  font-size: 11px;
+  padding: 7px;
+}
+.program-file-row input::file-selector-button,
+.program-includes input::file-selector-button {
+  padding: 7px 10px;
+  margin-right: 12px;
+  color: var(--color-text);
+  border: 1px solid #514160;
+  border-radius: 4px;
+  background: #21192d;
+  cursor: pointer;
+}
+.program-file-row .button {
+  min-height: 44px;
+}
+.program-error {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+}
+.program-restore {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 18px;
+}
+.program-restore p {
+  margin: 0;
+}
+.program-includes {
+  color: var(--color-muted);
+  font-size: 11px;
+  margin-top: 16px;
+}
+.program-includes summary {
+  cursor: pointer;
+}
+.program-includes label {
+  display: block;
+  margin: 12px 0 8px;
+}
+.program-details {
+  border-top: 1px solid var(--border);
+  margin-top: 20px;
+  padding-top: 16px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+.program-details summary {
+  cursor: pointer;
+}
+.program-details dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin: 15px 0;
+}
+.program-details dl > div {
+  display: flex;
+  gap: 12px;
+}
+.program-details dd {
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+}
+@media (max-width: 600px) {
+  .program-panel {
+    padding: 20px 16px;
+  }
+  .program-file-row {
+    flex-direction: column;
+  }
+  .program-restore {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+}

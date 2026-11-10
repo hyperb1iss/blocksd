@@ -61,21 +61,22 @@ See the [Vision document](https://github.com/hyperb1iss/blocksd/blob/main/VISION
 
 blocksd is in alpha. Visible RGB patterns have been verified on Lightpad Block M firmware 1.1.0 and LUMI Keys firmware 1.3.9. Lighting loads a device-side renderer on the first frame. Hardware coverage varies by device and firmware; live MIDI/MPE preservation during LUMI lighting, sustained timing, and physical color calibration remain unverified. The hardware-independent test suite verifies software behavior, not device compatibility.
 
-| Phase                             | Status                |
-| --------------------------------- | --------------------- |
-| Protocol Core                     | ✅ Complete           |
-| Device Discovery & Topology       | ✅ Complete           |
-| API Mode Keepalive                | ✅ Complete           |
-| LED Control & Patterns            | ✅ Complete           |
-| Touch & Button Events             | ✅ Complete           |
-| External API (Socket + WebSocket) | ✅ Complete           |
-| Web Dashboard                     | ✅ Complete           |
-| systemd + udev                    | ✅ Complete           |
-| LittleFoot Program Upload         | 🔄 Blocked (firmware) |
-| D-Bus Interface                   | 📋 Planned            |
+| Phase                             | Status                                    |
+| --------------------------------- | ----------------------------------------- |
+| Protocol Core                     | ✅ Complete                               |
+| Device Discovery & Topology       | ✅ Complete                               |
+| API Mode Keepalive                | ✅ Complete                               |
+| LED Control & Patterns            | ✅ Complete                               |
+| Touch & Button Events             | ✅ Complete                               |
+| External API (Socket + WebSocket) | ✅ Complete                               |
+| Web Dashboard                     | ✅ Complete                               |
+| systemd + udev                    | ✅ Complete                               |
+| LittleFoot Program Upload         | Source loading and upload acknowledgement |
+| D-Bus Interface                   | 📋 Planned                                |
 
 ## Next Steps
 
 - [Install blocksd](./installation) on your Linux system
 - [Quick Start](./quick-start) to connect your first device
+- [LittleFoot programs](./programs) to load custom device applications
 - Explore the [Protocol Reference](/protocol/) if you're curious about the wire format

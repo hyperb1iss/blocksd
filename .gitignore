@@ -26,3 +26,6 @@ src/blocksd/web/static/
 docs/node_modules/
 docs/.vitepress/dist/
 docs/.vitepress/cache/
+
+# Native compiler build products
+src/blocksd/littlefoot/_native/

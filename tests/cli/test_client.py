@@ -182,6 +182,15 @@ def test_led_keys_send_only_key_surface_and_exit(socket_path):
                     ],
                 )
             ]
+        if request["type"] == "program_status":
+            assert request["serial"] == DEVICE["serial"]
+            return [
+                response(
+                    request,
+                    type="program_status",
+                    program={"state": "ready", "message": "Lighting program is responding."},
+                )
+            ]
         frames.append(request)
         return [response(request, type="key_frame_ack", accepted=True)]
 
@@ -192,7 +201,7 @@ def test_led_keys_send_only_key_surface_and_exit(socket_path):
     assert frames[0]["type"] == "key_frame"
     assert frames[0]["uid"] == DEVICE["uid"]
     assert base64.b64decode(frames[0]["pixels"]) == bytes([248, 0, 0]) * 24
-    assert "Frame accepted" in result.output
+    assert "Lighting program is responding" in result.output
 
 
 def test_missing_daemon_is_actionable(socket_path):
@@ -208,3 +217,64 @@ def test_client_timeout_is_not_confirmation(socket_path):
         pytest.raises(ClientError, match="Timed out"),
     ):
         client.request("ping")
+
+
+def test_program_load_sends_sources_and_waits_for_upload_ack(socket_path, tmp_path):
+    source = tmp_path / "sequence.littlefoot"
+    source.write_text("void repaint() {}")
+    include = tmp_path / "notes.littlefoot"
+    include.write_text("const int note = 60;")
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        if request["type"] == "discover":
+            return [response(request, devices=[DEVICE])]
+        if request["type"] == "program_load":
+            assert request["serial"] == DEVICE["serial"]
+            assert request["source"] == source.read_text()
+            assert request["includes"] == {"notes.littlefoot": include.read_text()}
+            return [response(request, type="program_status", program={"state": "uploading"})]
+        assert request["type"] == "program_status"
+        return [
+            response(
+                request,
+                type="program_status",
+                program={
+                    "state": "uploaded",
+                    "message": "Upload acknowledged; execution is not verified.",
+                },
+            )
+        ]
+
+    with serve(socket_path, handle) as path:
+        result = runner.invoke(
+            app, ["--socket", str(path), "program", "load", str(source), "--include", str(include)]
+        )
+    assert result.exit_code == 0, result.exception
+    assert "execution is not verified" in result.output
+    assert [r["type"] for r in requests] == ["discover", "program_load", "program_status"]
+
+
+def test_lighting_unanswered_renderer_exits_with_diagnostic(socket_path):
+    def handle(request):
+        if request["type"] == "discover":
+            return [response(request, devices=[DEVICE])]
+        if request["type"] == "key_frame":
+            return [response(request, type="key_frame_ack", accepted=True)]
+        assert request["type"] == "program_status"
+        return [
+            response(
+                request,
+                program={
+                    "state": "unresponsive",
+                    "message": "Upload acknowledged, but the lighting program is not responding.",
+                },
+            )
+        ]
+
+    with serve(socket_path, handle) as path:
+        result = runner.invoke(app, ["--socket", str(path), "led", "keys", "ff0000"])
+    assert result.exit_code == 1
+    assert "not responding" in result.output
+    assert "program status" in result.output
