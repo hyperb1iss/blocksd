@@ -18,7 +18,7 @@ int main()
     const std::string source { std::istreambuf_iterator<char>(std::cin), {} };
     littlefoot::Compiler compiler;
     compiler.addNativeFunctions(nativeFunctions);
-    const auto result = compiler.compile(juce::String::fromUTF8(source.data(), static_cast<int>(source.size())), 0);
+    const auto result = compiler.compile(juce::String::fromUTF8(source.data(), static_cast<int>(source.size())), 512);
     if (result.failed())
     {
         std::cerr << result.getErrorMessage() << '\n';

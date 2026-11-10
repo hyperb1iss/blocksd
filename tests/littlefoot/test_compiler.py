@@ -15,7 +15,7 @@ def test_native_compiler_builds_valid_program():
     checksum, size, functions, _globals, heap = struct.unpack_from("<5H", code)
     assert size == len(code)
     assert functions == 1
-    assert heap == 0
+    assert heap == 512
     computed = size
     for byte in code[2:]:
         computed = (computed * 3 + byte) & 0xFFFF
@@ -133,3 +133,84 @@ def test_compilation_timeout_is_actionable():
 def test_source_size_is_checked_before_invocation():
     with pytest.raises(ValueError, match="256 KiB"):
         compile_source(" " * 262_144 + "void repaint() {}")
+
+
+def test_implicit_heap_keeps_global_arrays_after_the_sdk_default():
+    code = compile_source("int notes[4]; void initialise() { setHeapByte(144, 1); notes[0] = 7; }")
+    assert struct.unpack_from("<H", code, 8)[0] == 512 + 4 * 4
+
+
+def test_explicit_heap_overrides_sdk_default():
+    code = compile_source("#heapsize: 128\nvoid repaint() {}")
+    assert struct.unpack_from("<H", code, 8)[0] == 128
+
+
+def test_windows_source_and_nested_includes_with_bom():
+    code = compile_source(
+        '\ufeff#include "draw.littlefoot"\r\nvoid repaint() { draw(); }\r\n',
+        includes={
+            "draw.littlefoot": '\ufeff#include "colour.littlefoot"\r\nvoid draw() { fillPixel(colour, 0, 0); }\r\n',
+            "colour.littlefoot": "\ufeffconst int colour = 0xff0000ff;\r\n",
+        },
+    )
+    assert len(code) > 10
+
+
+def test_deep_include_chain_does_not_use_python_recursion():
+    includes = {
+        f"{index}.littlefoot": f'#include "{index + 1}.littlefoot"\n' for index in range(1500)
+    }
+    includes["1500.littlefoot"] = "void repaint() {}"
+    code = compile_source('#include "0.littlefoot"', includes=includes)
+    assert len(code) > 10
+
+
+def test_nested_include_bytes_are_counted_once():
+    payload = "/*" + "x" * 140_000 + "*/\nvoid repaint() {}"
+    prepared = prepare_source(
+        '#include "outer.littlefoot"',
+        includes={"outer.littlefoot": '#include "inner.littlefoot"', "inner.littlefoot": payload},
+    )
+    assert prepared == payload + "\n\n"
+
+
+def test_unclosed_comment_cannot_activate_include():
+    source = "/*x" * 80_000 + '\n#include "missing.littlefoot"'
+    assert prepare_source(source) == source
+
+
+def test_unclosed_metadata_is_reported_without_rescanning_openers():
+    with pytest.raises(ValueError, match="Unterminated Dashboard metadata"):
+        prepare_source("/*" + "<metadata>" * 25_000 + "*/")
+
+
+def test_malformed_include_with_long_whitespace_is_left_for_compiler():
+    source = '#include "missing.littlefoot"' + " " * 240_000 + "invalid"
+    assert prepare_source(source) == source
+
+
+@pytest.mark.parametrize("kind", ["colour", "option"])
+def test_unsupported_metadata_type_is_reported(kind):
+    with pytest.raises(ValueError, match=f"Unsupported Dashboard metadata type: {kind}"):
+        prepare_source(
+            f'/*<metadata><variables><variable name="x" type="{kind}" value="1" /></variables></metadata>*/'
+        )
+
+
+def test_unsupported_metadata_vector_is_reported():
+    with pytest.raises(ValueError, match="Unsupported Dashboard metadata element: vector"):
+        prepare_source('/*<metadata><variables><vector count="4" /></variables></metadata>*/')
+
+
+def test_empty_metadata_with_quoted_angle_bracket_is_valid():
+    assert compile_source('/*<metadata description="a > b"/>*/\nvoid repaint() {}')
+
+
+def test_local_bom_source_collects_referenced_includes(tmp_path):
+    source = tmp_path / "main.littlefoot"
+    source.write_bytes(b'\xef\xbb\xbf#include "draw.littlefoot"\r\nvoid repaint() { draw(); }\r\n')
+    (tmp_path / "draw.littlefoot").write_bytes(b"\xef\xbb\xbfvoid draw() {}\r\n")
+    text, includes = collect_file_sources(source)
+    assert text.startswith("#include")
+    assert includes == {"draw.littlefoot": "void draw() {}\n"}
+    assert compile_file(source)
