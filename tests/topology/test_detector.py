@@ -154,7 +154,9 @@ def test_scan_uses_winmm_pairing_and_releases_clients(monkeypatch):
 
     midi_in = Mock()
     midi_out = Mock()
-    midi_in.get_current_api.return_value = rtmidi.API_WINDOWS_MM
+    winmm_api = object()
+    monkeypatch.setattr(rtmidi, "API_WINDOWS_MM", winmm_api)
+    midi_in.get_current_api.return_value = winmm_api
     midi_in.get_ports.return_value = ["ROLI Piano M 0"]
     midi_out.get_ports.return_value = ["ROLI Piano M 1"]
     monkeypatch.setattr(rtmidi, "MidiIn", lambda: midi_in)

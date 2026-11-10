@@ -35,7 +35,11 @@ def run(
     cfg.verbose = cfg.verbose or verbose
     if ctx.obj is not None:
         cfg.api_socket = str(ctx.obj)
-    start(cfg)
+    try:
+        start(cfg)
+    except (ValueError, OSError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from exc
 
 
 @app.command()

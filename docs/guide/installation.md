@@ -4,6 +4,8 @@ blocksd uses ALSA MIDI on Linux, CoreMIDI on macOS, and WinMM on Windows, with P
 
 ## Windows
 
+Install Microsoft C++ Build Tools with the Desktop development with C++ workload and a Windows SDK. The locked python-rtmidi version builds from source on Python 3.13 and 3.14. Use a Developer PowerShell terminal so its compiler is available.
+
 From a source checkout, install the runtime and build the dashboard:
 
 ```powershell

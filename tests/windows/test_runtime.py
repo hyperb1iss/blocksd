@@ -73,3 +73,48 @@ async def test_windows_foreground_signal_shutdown_restores_handlers(monkeypatch,
     web.stop.assert_awaited_once()
     assert handlers == {signal.SIGINT: original, signal.SIGTERM: original}
     assert install_mock.call_count == 4
+
+
+def test_presets_roundtrip_independent_of_windows_code_page(monkeypatch, tmp_path):
+    import tempfile
+    from pathlib import Path
+
+    from blocksd.config.presets import Preset, PresetValue
+    from blocksd.device.models import BlockType
+
+    temporary_file = tempfile.NamedTemporaryFile
+    read_text = Path.read_text
+
+    def windows_temporary(*args, **kwargs):
+        kwargs.setdefault("encoding", "cp1252")
+        return temporary_file(*args, **kwargs)
+
+    def windows_read(path, *args, **kwargs):
+        kwargs.setdefault("encoding", "cp1252")
+        return read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(tempfile, "NamedTemporaryFile", windows_temporary)
+    monkeypatch.setattr(Path, "read_text", windows_read)
+    path = tmp_path / "presets.json"
+    preset = Preset(
+        id="example",
+        name="日本語 🎹",
+        serial="LKB001",
+        block_type=BlockType.LUMI_KEYS.value,
+        values=[PresetValue(item=40, value=1)],
+    )
+    PresetStore(path).put(preset)
+    assert "日本語 🎹" in path.read_bytes().decode("utf-8")
+    assert PresetStore(path).get("example") == preset
+
+
+def test_unsupported_windows_socket_prints_concise_error(monkeypatch):
+    from typer.testing import CliRunner
+
+    from blocksd.cli.app import app
+
+    monkeypatch.setattr(daemon, "sys", SimpleNamespace(platform="win32"))
+    result = CliRunner().invoke(app, ["--socket", "example.sock", "run"])
+    assert result.exit_code == 1
+    assert "Windows uses the local WebSocket API" in result.output
+    assert "Traceback" not in result.output

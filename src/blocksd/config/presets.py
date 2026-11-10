@@ -85,7 +85,7 @@ class PresetStore:
     def __init__(self, path: Path | None = None) -> None:
         self.path = path if path is not None else presets_path()
         self._document = (
-            PresetDocument.model_validate_json(self.path.read_text())
+            PresetDocument.model_validate_json(self.path.read_text(encoding="utf-8"))
             if self.path.exists()
             else PresetDocument()
         )
@@ -124,7 +124,12 @@ class PresetStore:
         temporary: Path | None = None
         try:
             with tempfile.NamedTemporaryFile(
-                mode="w", dir=self.path.parent, prefix=".presets-", suffix=".json", delete=False
+                mode="w",
+                encoding="utf-8",
+                dir=self.path.parent,
+                prefix=".presets-",
+                suffix=".json",
+                delete=False,
             ) as stream:
                 temporary = Path(stream.name)
                 stream.write(document.model_dump_json(indent=2) + "\n")

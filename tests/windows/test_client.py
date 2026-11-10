@@ -82,10 +82,9 @@ async def test_websocket_wait_times_out_without_confirmation(web_server):
     _, port = web_server
 
     def exchange():
-        with client.DaemonClient(
-            websocket_url=f"ws://127.0.0.1:{port}/ws", timeout=0.02
-        ) as connection:
+        with client.DaemonClient(websocket_url=f"ws://127.0.0.1:{port}/ws") as connection:
             connection.request("ping")
+            connection.timeout = 0.02
             with pytest.raises(client.ClientError, match="Timed out"):
                 connection.wait_for(lambda _: True)
 

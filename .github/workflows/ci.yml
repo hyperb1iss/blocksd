@@ -53,7 +53,7 @@ jobs:
       - run: uv sync --locked
       - run: uv run --locked ty check src tests/windows scripts
       - name: Check Windows runtime and portable protocol
-        run: uv run --locked pytest tests/windows tests/topology/test_detector.py tests/protocol tests/led tests/littlefoot tests/test_web_server.py
+        run: uv run --locked pytest tests/windows tests/topology/test_detector.py tests/protocol tests/led tests/littlefoot tests/test_web_server.py tests/test_http.py
 
   web:
     name: Dashboard and distribution (${{ matrix.os }})
