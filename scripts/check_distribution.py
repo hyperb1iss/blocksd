@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import blocksd
+from blocksd.littlefoot.compiler import compile_source
 from blocksd.web import resolve_static_dir
 
 
@@ -25,6 +26,9 @@ def main() -> None:
     for asset in assets:
         if not (static_dir / asset.lstrip("/")).is_file():
             raise RuntimeError(f"Dashboard asset is missing: {asset}")
+    compiled = compile_source("void repaint() { fillPixel(0xff00ff00, 0, 0); }")
+    if len(compiled) <= 10:
+        raise RuntimeError("Bundled LittleFoot compiler returned an invalid program")
     subprocess.run([sys.executable, "-m", "blocksd", "--help"], check=True)
 
 

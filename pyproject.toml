@@ -49,8 +49,11 @@ Issues = "https://github.com/hyperb1iss/blocksd/issues"
 Changelog = "https://github.com/hyperb1iss/blocksd/releases"
 
 [build-system]
-requires = ["hatchling>=1.32.0"]
+requires = ["hatchling>=1.32.0", "cmake>=3.24"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/blocksd"]
@@ -60,6 +63,7 @@ artifacts = ["src/blocksd/web/static/**"]
 include = [
     "/src", "/tests", "/web", "/systemd", "/docs",
     "/LICENSE", "/README.md", "/pyproject.toml", "/uv.lock", "/install.sh",
+    "/native", "/hatch_build.py",
 ]
 artifacts = ["src/blocksd/web/static/**"]
 

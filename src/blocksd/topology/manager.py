@@ -103,6 +103,13 @@ class TopologyManager:
         """Request fresh settings through the group that owns the device."""
         return any(entry.group.request_config_sync(uid) for entry in self._groups.values())
 
+    def program_group(self, uid: int) -> DeviceGroup:
+        """Resolve the live owner of a program operation."""
+        for group in self.groups:
+            if group.get_heap(uid) is not None:
+                return group
+        raise ValueError("Device is not connected or is not ready")
+
     # ── Scan cycle ────────────────────────────────────────────────────────
 
     async def _scan_cycle(self) -> None:

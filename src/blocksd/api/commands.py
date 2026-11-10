@@ -8,6 +8,7 @@ import json
 import logging
 import math
 import time
+from dataclasses import asdict
 from typing import TYPE_CHECKING, Any
 
 from blocksd import __version__
@@ -81,6 +82,38 @@ class ApiCommands:
             response.setdefault("id", msg["id"])
         return response, sub_id
 
+    async def _handle_json_async(
+        self,
+        line: bytes,
+        event_queue: asyncio.Queue[dict[str, Any]],
+        current_sub_id: int | None,
+    ) -> tuple[dict[str, Any] | None, int | None]:
+        """Program compilation must not delay MIDI keepalive or other clients."""
+        try:
+            msg = decode_json(line)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return self._handle_json(line, event_queue, current_sub_id)
+        if not isinstance(msg, dict) or msg.get("type") != "program_load":
+            return self._handle_json(line, event_queue, current_sub_id)
+        from blocksd.api.programs import load_program
+
+        try:
+            uid = self._target_uid(msg)
+            await load_program(self._manager, uid, msg)
+            response = self._program_status(uid)
+        except (TypeError, ValueError, OSError) as error:
+            response = {"type": "error", "message": str(error)}
+        if "id" in msg:
+            response["id"] = msg["id"]
+        return response, None
+
+    def _program_status(self, uid: int) -> dict[str, Any]:
+        return {
+            "type": "program_status",
+            "uid": uid,
+            "program": asdict(self._manager.program_group(uid).program_status(uid)),
+        }
+
     def _dispatch_message(
         self,
         msg: dict[str, Any],
@@ -110,6 +143,12 @@ class ApiCommands:
 
         if msg_type == "brightness":
             return self._handle_brightness(msg), None
+
+        if msg_type in ("program_status", "program_reset"):
+            uid = self._target_uid(msg)
+            if msg_type == "program_reset":
+                self._manager.program_group(uid).reset_program(uid)
+            return self._program_status(uid), None
 
         if msg_type == "config_get":
             return self._handle_config_get(msg), None

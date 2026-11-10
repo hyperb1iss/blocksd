@@ -1,4 +1,11 @@
-import type { ConfigMetadata, ConfigValue, Device, DeviceConnection, TouchData } from './types';
+import type {
+  ConfigMetadata,
+  ConfigValue,
+  Device,
+  DeviceConnection,
+  DeviceProgram,
+  TouchData,
+} from './types';
 
 // ── Requests ────────────────────────────────────────────────────────────
 
@@ -13,6 +20,16 @@ export type Request =
   | { type: 'config_set'; uid: number; item: number; value: number; id?: string }
   | { type: 'frame'; uid: number; pixels: string; id?: string }
   | { type: 'brightness'; uid: number; value: number }
+  | { type: 'program_status'; serial: string; id?: string }
+  | { type: 'program_reset'; serial: string; id?: string }
+  | {
+      type: 'program_load';
+      serial: string;
+      name: string;
+      source: string;
+      includes?: Record<string, string>;
+      id?: string;
+    }
   | { type: 'subscribe'; events: string[] };
 
 // ── Responses & Events ──────────────────────────────────────────────────
@@ -55,6 +72,14 @@ export interface ConfigAckResponse {
   message?: string;
   item: number;
   ok: boolean;
+  id?: string;
+}
+
+export interface ProgramStatusResponse {
+  type: 'program_status';
+  uid: number;
+  serial?: string;
+  program: DeviceProgram;
   id?: string;
 }
 
@@ -113,6 +138,7 @@ export type ServerMessage =
   | TopologyResponse
   | ConfigValuesResponse
   | ConfigAckResponse
+  | ProgramStatusResponse
   | DeviceAddedEvent
   | DeviceRemovedEvent
   | TopologyChangedEvent

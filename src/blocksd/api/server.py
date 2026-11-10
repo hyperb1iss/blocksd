@@ -180,6 +180,7 @@ class ApiServer(_ApiTransport):
         self._server = await asyncio.start_unix_server(
             lambda reader, writer: self._accept(reader, writer, self._handle_client),
             path=str(self._socket_path),
+            limit=2 * 1024 * 1024,
         )
 
         socket_stat = self._socket_path.stat()
@@ -246,7 +247,7 @@ class ApiServer(_ApiTransport):
                     if not rest:
                         break
                     line = first_byte + rest
-                    response, new_sub_id = self._handle_json(line, event_queue, sub_id)
+                    response, new_sub_id = await self._handle_json_async(line, event_queue, sub_id)
                     if new_sub_id is not None:
                         sub_id = new_sub_id
                     if response:
@@ -405,7 +406,9 @@ class WebServer(_ApiTransport):
                     continue
 
                 if opcode == WSOpcode.TEXT:
-                    response, new_sub_id = self._handle_json(payload, event_queue, sub_id)
+                    response, new_sub_id = await self._handle_json_async(
+                        payload, event_queue, sub_id
+                    )
                     if new_sub_id is not None:
                         sub_id = new_sub_id
                     if response:

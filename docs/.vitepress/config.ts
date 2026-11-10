@@ -47,6 +47,7 @@ export default defineConfig({
             { text: "Quick Start", link: "/guide/quick-start" },
             { text: "Configuration", link: "/guide/configuration" },
             { text: "Web Dashboard", link: "/guide/web-dashboard" },
+            { text: "LittleFoot Programs", link: "/guide/programs" },
           ],
         },
       ],

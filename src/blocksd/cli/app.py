@@ -102,3 +102,4 @@ def status(
 import blocksd.cli.config as _config  # noqa: F401, E402
 import blocksd.cli.install as _install  # noqa: F401, E402
 import blocksd.cli.led as _led  # noqa: F401, E402
+import blocksd.cli.program as _program  # noqa: F401, E402

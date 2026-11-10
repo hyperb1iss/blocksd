@@ -1,0 +1,48 @@
+name: Native wheels
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "native/**"
+      - "hatch_build.py"
+      - "pyproject.toml"
+      - "src/blocksd/littlefoot/**"
+      - "scripts/check_distribution.py"
+      - ".github/workflows/wheels.yml"
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wheels:
+    name: Wheel (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-15-intel, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-js
+      - run: pnpm --dir web build
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.12.10"
+          python-version: "3.13"
+      - name: Build and test platform wheel
+        run: uvx --from cibuildwheel==4.3.5 cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_BUILD: "cp313-*"
+          CIBW_SKIP: "*-musllinux_* *-win32"
+          CIBW_ARCHS: native
+          CIBW_BUILD_FRONTEND: "build[uv]"
+          CIBW_BEFORE_ALL_LINUX: "yum install -y alsa-lib-devel"
+          CIBW_TEST_COMMAND: "python {project}/scripts/check_distribution.py"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: blocksd-wheels-${{ matrix.os }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error

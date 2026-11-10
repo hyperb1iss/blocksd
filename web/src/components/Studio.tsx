@@ -8,6 +8,7 @@ import { blockTypeLabels } from '../lib/constants';
 import type { PongResponse } from '../lib/protocol';
 import type { Device } from '../lib/types';
 import { DeviceSurface } from './device/DeviceSurface';
+import { ProgramPanel } from './device/ProgramPanel';
 import { SettingControl } from './device/SettingControl';
 import { PresetLibrary, SavePreset } from './presets/PresetLibrary';
 
@@ -376,6 +377,7 @@ function DeviceWorkspace({
           )}
         </div>
       </section>
+      <ProgramPanel key={device.serial} serial={device.serial} />
       <SavePreset
         serial={device.serial}
         library={library}

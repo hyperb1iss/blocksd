@@ -42,6 +42,8 @@ class Blocksd < Formula
       from blocksd.web import resolve_static_dir
       assert version("blocksd") == "#{version}"
       assert rtmidi.API_MACOSX_CORE in rtmidi.get_compiled_api()
+      from blocksd.littlefoot.compiler import compile_source
+      assert len(compile_source("void repaint() {}")) > 10
       index = resolve_static_dir() / "index.html"
       assert index.is_file(), "Bundled dashboard is missing"
     PYTHON

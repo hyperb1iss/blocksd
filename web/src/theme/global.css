@@ -3,6 +3,7 @@
 @import "./hardware.css";
 @import "./settings.css";
 @import "./presets.css";
+@import "./programs.css";
 @import "./responsive.css";
 
 @theme {
