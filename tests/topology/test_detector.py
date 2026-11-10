@@ -121,3 +121,46 @@ def test_scan_rejects_hotplug_during_enumeration_and_releases_clients(monkeypatc
         scan_for_blocks()
     midi_in.delete.assert_called_once()
     midi_out.delete.assert_called_once()
+
+
+@pytest.mark.parametrize("name", ["ROLI Piano M", "ROLI Piano M 0", "LUMI", "LUMI Keys"])
+def test_rebranded_devices_are_discovered(name):
+    assert _is_blocks_port(name)
+
+
+@pytest.mark.parametrize("name", ["ROLI Piano", "Illuminated Keys", "NotLUMI", "ROLI Piano Mini"])
+def test_unrelated_devices_are_not_discovered(name):
+    assert not _is_blocks_port(name)
+
+
+def test_winmm_pairs_independent_suffixes_and_distinguishes_duplicates():
+    pairs = _pair_ports(
+        ["ROLI Piano M 0", "ROLI Piano M 1", "LUMI 2"],
+        ["LUMI 0", "ROLI Piano M 1", "ROLI Piano M 2"],
+        winmm=True,
+    )
+    assert [(p.input_port, p.output_port) for p in pairs] == [(0, 1), (1, 2), (2, 0)]
+    assert len({p.key for p in pairs}) == 3
+    renamed = _pair_ports(["ROLI Piano M 9"], ["ROLI Piano M 4"], winmm=True)
+    assert renamed[0].key == pairs[0].key
+
+
+def test_non_winmm_names_preserve_numeric_suffix():
+    assert _pair_ports(["LUMI 0"], ["LUMI 1"]) == []
+
+
+def test_scan_uses_winmm_pairing_and_releases_clients(monkeypatch):
+    import rtmidi
+
+    midi_in = Mock()
+    midi_out = Mock()
+    midi_in.get_current_api.return_value = rtmidi.API_WINDOWS_MM
+    midi_in.get_ports.return_value = ["ROLI Piano M 0"]
+    midi_out.get_ports.return_value = ["ROLI Piano M 1"]
+    monkeypatch.setattr(rtmidi, "MidiIn", lambda: midi_in)
+    monkeypatch.setattr(rtmidi, "MidiOut", lambda: midi_out)
+    pairs = scan_for_blocks()
+    assert [(p.input_port, p.output_port) for p in pairs] == [(0, 0)]
+    assert pairs[0].name == "ROLI Piano M"
+    midi_in.delete.assert_called_once()
+    midi_out.delete.assert_called_once()

@@ -5,7 +5,7 @@
 </h1>
 
 <p align="center">
-  <strong>Linux and macOS Daemon for ROLI Blocks Devices</strong><br>
+  <strong>ROLI Blocks Daemon for Linux, macOS, and Windows</strong><br>
   <sub>✦ Topology · Keepalive · LED Control · Touch Events ✦</sub>
 </p>
 

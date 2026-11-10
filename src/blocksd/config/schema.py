@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+import sys
+
+from pydantic import BaseModel, Field
 
 
 class DaemonConfig(BaseModel):
@@ -14,8 +16,8 @@ class DaemonConfig(BaseModel):
     api_ping_timeout: float = 6.0
     verbose: bool = False
 
-    # API server settings
-    api_enabled: bool = True
+    # Unix socket API; Windows commands use the web server's WebSocket endpoint.
+    api_enabled: bool = Field(default_factory=lambda: sys.platform != "win32")
     api_socket: str = ""  # empty = platform-specific local socket path
 
     # Web UI settings
