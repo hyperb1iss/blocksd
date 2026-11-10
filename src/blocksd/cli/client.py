@@ -15,7 +15,7 @@ from blocksd.config.loader import load_config
 from blocksd.paths import default_socket_path
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Generator
     from pathlib import Path
 
 
@@ -115,7 +115,7 @@ class DaemonClient:
 
 
 @contextlib.contextmanager
-def connect(ctx: typer.Context) -> Iterator[DaemonClient]:
+def connect(ctx: typer.Context) -> Generator[DaemonClient]:
     """Translate expected command failures into a concise CLI error."""
     try:
         with DaemonClient(ctx.find_root().obj) as client:

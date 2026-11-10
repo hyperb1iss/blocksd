@@ -19,7 +19,7 @@ from blocksd.cli.app import app
 from blocksd.cli.client import ClientError, DaemonClient
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Generator
 
 runner = CliRunner()
 DEVICE = {
@@ -44,7 +44,7 @@ def socket_path():
 
 
 @contextlib.contextmanager
-def serve(path: Path, handler: Callable[[dict], list[dict]]) -> Iterator[Path]:
+def serve(path: Path, handler: Callable[[dict], list[dict]]) -> Generator[Path]:
     errors: list[BaseException] = []
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server:
         server.bind(str(path))
