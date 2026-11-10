@@ -418,6 +418,10 @@ def _handle_config(reader: Packed7BitReader, device_index: int, handler: PacketH
     elif cmd == ConfigCommand.FACTORY_SYNC_RESET:
         handler.on_config_factory_sync_reset(device_index)
 
+    else:
+        # Unknown config bodies have no length prefix; the next boundary is unknowable.
+        return False
+
     return True
 
 

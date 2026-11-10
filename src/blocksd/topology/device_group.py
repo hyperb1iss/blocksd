@@ -37,6 +37,7 @@ from blocksd.littlefoot.programs import bitmap_led_program
 from blocksd.protocol.builder import (
     build_begin_api_mode,
     build_config_request,
+    build_config_request_factory_sync,
     build_end_api_mode,
     build_ping,
     build_program_event,
@@ -121,6 +122,7 @@ class DeviceGroup:
         self.on_touch_event: list[Callable[[TouchEvent], None]] = []
         self.on_button_event: list[Callable[[ButtonEvent], None]] = []
         self.on_config_changed: list[Callable[[int, ConfigValue], None]] = []
+        self.on_config_reset: list[Callable[[int], None]] = []
 
     async def run(self) -> None:
         """Main lifecycle loop — runs until connection closes or failure."""
@@ -297,7 +299,8 @@ class DeviceGroup:
                 # Leave the factory program active until a lighting request arrives.
                 if uid not in self._heaps:
                     self._heaps[uid] = RemoteHeap(heap_size_for_block(dev.block_type))
-                self._request_config_sync(uid)
+                if not self.request_config_sync(uid):
+                    log.warning("Could not request settings from %s", dev.serial)
                 for cb in self.on_device_added:
                     cb(dev)
 
@@ -395,15 +398,12 @@ class DeviceGroup:
             return False
         return self.conn.send(build_config_request(dev.topology_index, item))
 
-    def _request_config_sync(self, uid: int) -> None:
-        """Request a full config sync from a newly connected device."""
+    def request_config_sync(self, uid: int) -> bool:
+        """Ask an API-connected device to report its active system settings."""
         dev = self._devices.get(uid)
-        if dev is None:
-            return
-        from blocksd.protocol.builder import build_config_request_user_sync
-
-        self.conn.send(build_config_request_user_sync(dev.topology_index))
-        log.debug("Requested config sync for %s", dev.serial)
+        if dev is None or uid not in self._pings:
+            return False
+        return self.conn.send(build_config_request_factory_sync(dev.topology_index))
 
     # ── Device management ─────────────────────────────────────────────────
 
@@ -528,11 +528,12 @@ class DeviceGroup:
     def on_device_version(self, topology_index: int, version: str) -> None:
         uid = self._uid_from_index(topology_index)
         if dev := self._devices.get(uid):
-            dev.version = version
+            dev.version = version.partition("\x00")[0]
 
     def on_device_name(self, topology_index: int, name: str) -> None:
         uid = self._uid_from_index(topology_index)
-        if dev := self._devices.get(uid):
+        name = name.partition("\x00")[0]
+        if name.strip() and name.isprintable() and (dev := self._devices.get(uid)):
             dev.name = name
 
     def on_packet_ack(self, device_index: int, counter: int) -> None:
@@ -626,6 +627,8 @@ class DeviceGroup:
         uid = self._uid_from_index(device_index)
         if uid:
             self._config.pop(uid, None)
+            for cb in self.on_config_reset:
+                cb(uid)
             log.debug("Factory sync reset for device %d", uid)
 
     def on_log_message(self, device_index: int, message: str) -> None:

@@ -43,6 +43,7 @@ class TopologyManager:
         self.on_touch_event: list[Callable[[TouchEvent], None]] = []
         self.on_button_event: list[Callable[[ButtonEvent], None]] = []
         self.on_config_changed: list[Callable[[int, ConfigValue], None]] = []
+        self.on_config_reset: list[Callable[[int], None]] = []
 
     async def run(self) -> None:
         """Main scan loop — runs until cancelled."""
@@ -98,6 +99,10 @@ class TopologyManager:
         """Set a config value on a device."""
         return any(entry.group.set_config(uid, item, value) for entry in self._groups.values())
 
+    def request_config_sync(self, uid: int) -> bool:
+        """Request fresh settings through the group that owns the device."""
+        return any(entry.group.request_config_sync(uid) for entry in self._groups.values())
+
     # ── Scan cycle ────────────────────────────────────────────────────────
 
     async def _scan_cycle(self) -> None:
@@ -145,6 +150,7 @@ class TopologyManager:
         group.on_touch_event = self.on_touch_event
         group.on_button_event = self.on_button_event
         group.on_config_changed = self.on_config_changed
+        group.on_config_reset = self.on_config_reset
 
         task = asyncio.create_task(group.run(), name=f"group:{pair.name}")
         self._running_tasks.add(task)

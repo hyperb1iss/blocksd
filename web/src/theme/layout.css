@@ -40,14 +40,6 @@
   border-color: var(--color-purple);
   transform: translate(2px, -2px);
 }
-.brand-subtitle {
-  display: block;
-  font-size: 10px;
-  font-weight: 450;
-  letter-spacing: 0.35px;
-  color: var(--color-muted);
-  margin-top: 5px;
-}
 .sidebar nav {
   display: grid;
   gap: 8px;
@@ -85,14 +77,14 @@
 .sidebar-devices {
   margin-top: 42px;
 }
-.eyebrow {
+.sidebar-section-title {
   color: var(--color-muted);
   text-transform: uppercase;
   letter-spacing: 1.8px;
   font-size: 9px;
   font-weight: 700;
 }
-.sidebar-devices > .eyebrow {
+.sidebar-devices > .sidebar-section-title {
   margin: 0 12px 17px;
   font-size: 8px;
 }
@@ -134,12 +126,6 @@
   align-items: center;
   gap: 8px;
   font-size: 10px;
-}
-.sidebar-caption {
-  display: block;
-  color: var(--color-muted);
-  margin-top: 10px;
-  font-size: 9px;
 }
 .signal-dot {
   width: 6px;
@@ -195,35 +181,12 @@
   margin-bottom: 22px;
   gap: 20px;
 }
-.page-heading .eyebrow {
-  color: var(--color-purple);
-}
 .page-heading h1 {
   font-size: clamp(27px, 2.2vw, 34px);
   font-weight: 650;
   letter-spacing: -1.8px;
   margin: 7px 0 6px;
   line-height: 1.1;
-}
-.page-heading p {
-  color: var(--color-muted);
-  font-size: 12px;
-  margin: 0;
-  line-height: 1.7;
-}
-.page-index {
-  color: #6c5b80;
-  font-size: 30px;
-  font-weight: 250;
-  letter-spacing: -1px;
-  padding-top: 5px;
-}
-.page-index span {
-  display: block;
-  color: var(--color-muted);
-  font: 8px var(--font-mono);
-  letter-spacing: 1.5px;
-  margin-top: 4px;
 }
 .connection-banner {
   display: flex;
@@ -337,19 +300,6 @@
   color: var(--color-muted);
   line-height: 1.8;
   margin: 20px 0;
-}
-.workspace-footer {
-  padding: 22px 42px;
-  border-top: 1px solid #2b2235;
-  color: #96869f;
-  font-size: 9px;
-  display: flex;
-  justify-content: space-between;
-  gap: 15px;
-}
-.footer-divider {
-  margin: 0 9px;
-  color: #574064;
 }
 .skip-link {
   position: fixed;

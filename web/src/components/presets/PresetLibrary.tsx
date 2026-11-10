@@ -22,13 +22,13 @@ export function SavePreset({
       }}
     >
       <div>
-        <label htmlFor={id}>keep this setup</label>
+        <label htmlFor={id}>preset name</label>
         <p>save the settings your device has reported.</p>
       </div>
       <div className="save-preset-fields">
         <input
           id={id}
-          placeholder="name your preset"
+          placeholder="preset name"
           value={name}
           maxLength={80}
           onChange={event => setName(event.target.value)}
@@ -62,10 +62,7 @@ export function PresetLibrary({
   return (
     <section className="preset-library" aria-label="saved presets">
       <div className="section-heading">
-        <div>
-          <span className="eyebrow">your library</span>
-          <h2>{serial ? 'saved for this device' : 'ready for your next session'}</h2>
-        </div>
+        <h2>{serial ? 'presets for this device' : 'saved presets'}</h2>
         <button
           type="button"
           className="button secondary"
@@ -102,8 +99,8 @@ export function PresetLibrary({
           <span className="preset-glyph" aria-hidden="true">
             ▤
           </span>
-          <h3>your next session, already set up.</h3>
-          <p>save a device setup here, then recall it whenever you need it.</p>
+          <h3>no saved presets</h3>
+          <p>save the current device settings or import a preset file.</p>
         </div>
       ) : (
         <div className="preset-grid">

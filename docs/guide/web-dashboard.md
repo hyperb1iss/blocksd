@@ -19,6 +19,8 @@ Select a connected device to see its battery, firmware, supported settings, and 
 
 Settings come from the daemon's shared metadata and device-reported ranges. MIDI modes use selectors, boolean settings use switches, and numeric settings use explicit value entry. An unavailable range leaves a setting read-only. The dashboard does not guess which settings a device program supports.
 
+Opening the settings panel or pressing **refresh** requests the hardware's active factory settings. Controls populate as the device reports them.
+
 After changing a setting, wait for device confirmation. A successful send remains pending until the device reports the requested value. A disconnect, rejected value, or missing readback is shown as an error. Saving a preset captures reported values rather than an unconfirmed edit.
 
 Connection details live in a disclosure below the workspace.

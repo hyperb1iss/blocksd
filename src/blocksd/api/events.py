@@ -116,6 +116,10 @@ class EventBroadcaster:
         }
         self._broadcast("config", msg)
 
+    def broadcast_config_reset(self, uid: int, *, serial: str | None = None) -> None:
+        """Invalidate settings when a device starts a new active configuration list."""
+        self._broadcast("config", {"type": "config_reset", "uid": uid, "serial": serial})
+
     def _broadcast(self, category: str, msg: dict[str, Any]) -> None:
         """Send message to all subscribers of the given category."""
         dead: list[int] = []

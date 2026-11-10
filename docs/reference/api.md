@@ -251,6 +251,10 @@ Browser clients should target configuration requests with `serial` instead of a 
 
 The `config_values` response includes `serial`, `values`, and `schema`. Each value includes `item`, `value`, `min`, `max`, and `writable`. Schema entries describe `item`, `key`, `label`, `group`, `kind`, and verified `options` where available. Unknown settings retain a numeric label. Do not enable writes without a device-reported range.
 
+Set `refresh: true` on `config_get` to request a factory-settings sync from the connected hardware. Subscribe to `config` first: the response contains the current cache, and subsequent `config_changed` events deliver fresh settings. Without `refresh`, the command only reads cached values. The daemon also requests factory settings when a device enters API mode.
+
+A `config_reset` event (`uid`, `serial`) invalidates the device's previous settings list when a new sync starts or its program changes. Clear cached values, metadata, and pending writes for that device; subsequent `config_changed` events rebuild the list. A device may report an empty list.
+
 A `config_ack` reports `status: "pending"` when dispatch succeeds and `status: "error"` otherwise. Subscribe to `config` before writing and wait for a matching `config_changed` event to establish readback. Config events also include serial, range, and writable state. Acknowledgement is not a guarantee of device-side persistence.
 
 ### Saved presets

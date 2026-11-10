@@ -328,18 +328,3 @@
   font-family: var(--font-mono);
   font-size: 9px;
 }
-.instrument-tip {
-  display: flex;
-  gap: 13px;
-  align-items: center;
-  border-top: 1px solid var(--border);
-  margin-top: auto;
-  padding-top: 19px;
-  color: var(--color-muted);
-  font-size: 10px;
-  line-height: 1.8;
-}
-.instrument-tip > span {
-  font-size: 25px;
-  color: var(--color-purple);
-}
