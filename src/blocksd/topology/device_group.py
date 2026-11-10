@@ -451,6 +451,14 @@ class DeviceGroup:
                 break
             self.conn.send(packet)
 
+        if (
+            upload
+            and not upload.config_requested
+            and not heap.is_dirty
+            and heap.in_flight_count == 0
+        ):
+            upload.config_requested = self.request_config_sync(uid)
+
     # ── Config management ────────────────────────────────────────────────
 
     def get_config(self, uid: int) -> dict[int, ConfigValue]:

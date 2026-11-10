@@ -75,7 +75,7 @@ Each parsed binary frame write returns one acknowledgement byte (inside a binary
 
 `0x00` means the device was unavailable, the `uid` was unknown, or the payload was invalid. Early rejections during device startup are retryable.
 
-Acceptance confirms that the daemon accepted the frame, not a hardware acknowledgement or visible display change. The first frame triggers renderer upload and can remain queued until the code transfer is acknowledged and the renderer answers a fresh execution challenge. See [renderer startup](../architecture/littlefoot).
+Acceptance confirms that the daemon accepted the frame, not a hardware acknowledgement or visible display change. The first frame triggers renderer upload and can remain queued until the code transfer is acknowledged and the renderer answers a fresh execution challenge. Read `program_status` to distinguish upload progress from renderer readiness. See [renderer startup](../architecture/littlefoot).
 
 ### Python Example
 
@@ -154,7 +154,7 @@ The `uid` is a deterministic 64-bit identifier derived from the device serial. C
 Only Lightpad Block and Lightpad Block M advertise nonzero grid dimensions and accept bitmap frames. LUMI advertises `grid_width = 0`, `grid_height = 0`, and `key_count = 24`; use `key_frame` for its key colors. Other recognized devices report `key_count = 0`.
 
 ::: warning
-A device can appear in `discover_response` before API mode activation and heap setup finish. Retry rejected writes after discovery settles. An accepted frame can still be waiting for renderer initialisation; acceptance does not expose renderer readiness.
+A device can appear in `discover_response` before API mode activation and heap setup finish. Retry rejected writes after discovery settles. An accepted frame can still be waiting for renderer initialisation; request `program_status` to inspect readiness separately.
 :::
 
 ### `frame`
@@ -188,6 +188,89 @@ The key renderer sets LUMI's hardware brightness to 100% when it starts and when
 Key frames require a LUMI device with a reported firmware version of 1.3.0 or newer. Invalid base64, incorrect length, an unsupported device, or an unavailable/older firmware version produces `accepted: false`. The existing 685-byte binary frame format remains dedicated to 15×15 Lightpad grids.
 
 For example, construct a red frame in Python with `base64.b64encode(bytes([255, 0, 0]) * 24).decode("ascii")`.
+
+### `program_load`, `program_status`, and `program_reset`
+
+program commands use either a device `serial` or an integer `uid`. browser clients should use `serial` because device UIDs can exceed JavaScript's exact integer range. include an `id` to correlate responses. the device must have completed API-mode activation.
+
+load LittleFoot source with an optional map of include names to source text:
+
+```json
+{
+  "type": "program_load",
+  "serial": "LPM123456789ABCD",
+  "name": "Example.littlefoot",
+  "source": "#heapsize: 64\n#include \"Helpers.littlefoot\"\nvoid repaint() { draw(); }",
+  "includes": {
+    "Helpers.littlefoot": "void draw() { fillPixel(makeARGB(255, 128, 255, 234), 0, 0); }"
+  },
+  "id": "load-example"
+}
+```
+
+the program name must contain 1 to 128 printable characters. the source, include contents, and include names must total no more than 256 KiB in UTF-8. include names can use normalized relative paths; absolute paths and parent-directory traversal are rejected. the compiler reads only the supplied bundle and the bundled standard library. Dashboard metadata supports fixed defaults for `int`, `float`, `bool`, and `midiNote`, with no live metadata controls. errors refer to line numbers in the expanded source.
+
+native clients can instead send base64-encoded LittleFoot bytecode in `code`. provide exactly one of `source` or `code`. the daemon validates the binary header, checksum, function table, and device memory requirements before replacing the active program.
+
+source compilation runs away from the MIDI event loop. allow at least 20 seconds for the load request. the response reports the current upload state; it does not wait for the complete device acknowledgement:
+
+```json
+{
+  "type": "program_status",
+  "uid": 42,
+  "program": {
+    "owner": "custom",
+    "name": "Example.littlefoot",
+    "state": "uploading",
+    "message": "Uploading program to the device.",
+    "code_size": 45,
+    "heap_size": 64
+  },
+  "id": "load-example"
+}
+```
+
+the example sizes are illustrative. `code_size` includes the program header; `heap_size` is the compiled program's heap allocation. query status to follow the transfer:
+
+```json
+{
+  "type": "program_status",
+  "serial": "LPM123456789ABCD",
+  "id": "status-example"
+}
+```
+
+| State          | Meaning                                                                                       |
+| -------------- | --------------------------------------------------------------------------------------------- |
+| `idle`         | blocksd is not managing a temporary program on this device                                    |
+| `compiling`    | LittleFoot source is being compiled; the previous program has not been replaced               |
+| `uploading`    | the complete upload has not been acknowledged                                                 |
+| `waiting`      | a lighting upload was acknowledged, but the renderer has not answered its execution challenge |
+| `ready`        | a lighting renderer answered the current challenge                                            |
+| `uploaded`     | a custom program upload was acknowledged; execution is not verified                           |
+| `unresponsive` | an upload or renderer reply has exceeded the response window; the message identifies which    |
+
+the `owner` is `device`, `lighting`, or `custom`. `unresponsive` reports the delay without cancelling transfer retries or readiness checks. even `ready` does not prove visible LED output. custom programs do not need to implement blocksd's private renderer challenge.
+
+loading is temporary and does not save a startup default. lighting frames are rejected while a custom program owns the device or compilation is in progress. compile and validation errors leave the previous program intact; a disconnect during compilation prevents the result from being sent to a replacement device session.
+
+request the saved program explicitly:
+
+```json
+{ "type": "program_reset", "serial": "LPM123456789ABCD", "id": "reset-example" }
+```
+
+the daemon sends the SDK's end/begin API-mode sequence, clears its temporary program state, and returns `program_status` with `owner: "device"` and `state: "idle"`. the response confirms dispatch, not execution of the saved program. reset does not perform a factory reset or recover a previous temporary upload. a reset during compilation is rejected.
+
+program errors use the normal correlated error response:
+
+```json
+{
+  "type": "error",
+  "message": "Include not supplied: Helpers.littlefoot",
+  "id": "load-example"
+}
+```
 
 ### `brightness`
 
@@ -359,5 +442,6 @@ Frame writes are rejected when:
 - The device has not finished entering API mode or has no heap
 - The device does not support the requested bitmap or key surface
 - A key frame targets unsupported or unavailable LUMI firmware
+- A custom program owns the device or a program is being compiled
 
-When in doubt: retry discovery, retry frame writes until accepted, and assume a reconnect invalidates any cached readiness state.
+retry discovery for unavailable devices. inspect `program_status` before retrying a rejected lighting frame; an active custom program needs an explicit reset before lighting can replace it. a reconnect invalidates cached readiness state.

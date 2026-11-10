@@ -66,15 +66,22 @@ def load(
 
 def _read_sources(file: Path, extra: list[Path]) -> tuple[str, dict[str, str]]:
     from blocksd.api.programs import MAX_SOURCE_BYTES
+    from blocksd.littlefoot.source import collect_file_sources
 
-    if sum(path.stat().st_size for path in [file, *extra]) > MAX_SOURCE_BYTES:
+    source, includes = collect_file_sources(file)
+    if sum(path.stat().st_size for path in extra) > MAX_SOURCE_BYTES:
         raise ValueError("Source and includes exceed 256 KiB")
-    includes: dict[str, str] = {}
     for path in extra:
-        if path.name in includes or path.name == file.name:
+        content = path.read_text(encoding="utf-8")
+        if path.name == file.name or (path.name in includes and includes[path.name] != content):
             raise ValueError(f"Duplicate source filename: {path.name}")
-        includes[path.name] = path.read_text(encoding="utf-8")
-    return file.read_text(encoding="utf-8"), includes
+        includes[path.name] = content
+    if (
+        len(source.encode()) + sum(len(k.encode()) + len(v.encode()) for k, v in includes.items())
+        > MAX_SOURCE_BYTES
+    ):
+        raise ValueError("Source and includes exceed 256 KiB")
+    return source, includes
 
 
 @program_app.command("status")

@@ -58,6 +58,7 @@ class ProgramUpload:
         self.code = code
         self.name = name
         self._generation = heap.generation
+        self.config_requested = False
         self.started_at = time.monotonic()
         self._prepare()
 
@@ -68,6 +69,7 @@ class ProgramUpload:
     def advance(self) -> None:
         if self._generation != self.heap.generation:
             self._generation = self.heap.generation
+            self.config_requested = False
             self.started_at = time.monotonic()
             self._prepare()
 

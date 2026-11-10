@@ -11,7 +11,11 @@ from blocksd.api.commands import ApiCommands
 from blocksd.api.programs import load_program
 from blocksd.littlefoot.assembler import BytecodeAssembler, compute_program_checksum
 from blocksd.littlefoot.upload import ProgramUpload, validate_program
-from blocksd.protocol.builder import build_begin_api_mode, build_end_api_mode
+from blocksd.protocol.builder import (
+    build_begin_api_mode,
+    build_config_request_factory_sync,
+    build_end_api_mode,
+)
 from blocksd.topology.detector import MidiPortPair
 from blocksd.topology.device_group import DeviceGroup
 from blocksd.topology.manager import TopologyManager, _GroupEntry
@@ -172,3 +176,21 @@ def test_custom_upload_recovers_after_heap_state_loss(connected):
     upload.advance()
     assert heap.target.startswith(program_bytes())
     assert upload.status().state == "uploading"
+
+
+def test_custom_upload_refreshes_settings_once_after_each_completed_transfer(connected):
+    _, group, conn, uid = connected
+    group.load_program(uid, program_bytes(), "seq")
+    conn.sent.clear()
+    group._flush_heaps(1)
+    request = build_config_request_factory_sync(0)
+    assert request not in conn.sent
+    finish_upload(group.get_heap(uid))
+    group._flush_heaps(2)
+    group._flush_heaps(3)
+    assert conn.sent.count(request) == 1
+    group.get_heap(uid).reset_device_state()
+    group._flush_heaps(4)
+    finish_upload(group.get_heap(uid))
+    group._flush_heaps(5)
+    assert conn.sent.count(request) == 2
