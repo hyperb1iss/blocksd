@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import socket
+import sys
 
 log = logging.getLogger(__name__)
 
@@ -19,6 +20,9 @@ _address: str | None = None
 def _init() -> bool:
     """Initialize the notification socket (lazy, once)."""
     global _socket, _address
+
+    if sys.platform == "win32":
+        return False
 
     if _socket is not None:
         return True

@@ -36,6 +36,25 @@ jobs:
       - run: bash -n install.sh
       - run: uv run --locked pytest
 
+  windows:
+    name: Windows runtime (Python ${{ matrix.python-version }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.12.10"
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run --locked ty check src tests/windows scripts
+      - name: Check Windows runtime and portable protocol
+        run: uv run --locked pytest tests/windows tests/topology/test_detector.py tests/protocol tests/led tests/littlefoot tests/test_web_server.py tests/test_http.py
+
   web:
     name: Dashboard and distribution (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

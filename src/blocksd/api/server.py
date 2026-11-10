@@ -147,6 +147,8 @@ class ApiServer(_ApiTransport):
 
     async def start(self) -> None:
         """Bind the socket and start accepting connections."""
+        if sys.platform == "win32":
+            raise OSError("The Unix socket API is unavailable on Windows; use the WebSocket API.")
         if self._server is not None:
             return
         # Ensure socket directory exists

@@ -14,6 +14,7 @@ depends=(
     'python-typer>=0.27.2'
     'python-rich>=15.0.0'
     'python-pydantic>=2.13.5'
+    'python-websockets>=17.2'
 )
 makedepends=(
     'python-build'

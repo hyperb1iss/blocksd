@@ -1,7 +1,7 @@
 [project]
 name = "blocksd"
 version = "0.7.0"
-description = "ROLI Blocks daemon for Linux and macOS: keepalive, LED control, and topology"
+description = "ROLI Blocks daemon for Linux, macOS, and Windows: keepalive, LED control, and topology"
 readme = "README.md"
 license = "ISC"
 requires-python = ">=3.13"
@@ -14,6 +14,7 @@ classifiers = [
     "License :: OSI Approved :: ISC License (ISCL)",
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Multimedia :: Sound/Audio :: MIDI",
@@ -24,6 +25,7 @@ dependencies = [
     "typer>=0.27.2",
     "rich>=15.0.0",
     "pydantic>=2.13.5",
+    "websockets>=17.2",
 ]
 
 [dependency-groups]

@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import logging
 import signal
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -29,6 +30,10 @@ async def run_daemon(config: DaemonConfig) -> None:
     """Main daemon coroutine — manages ROLI Blocks devices until shutdown."""
     setup_logging(verbose=config.verbose)
     log.info("blocksd starting")
+    if sys.platform == "win32" and (config.api_enabled or config.api_socket):
+        raise ValueError(
+            "Windows uses the local WebSocket API. Remove api_socket and set api_enabled = false."
+        )
 
     manager = TopologyManager()
     manager.on_device_added.append(_on_device_added)
@@ -70,8 +75,15 @@ async def run_daemon(config: DaemonConfig) -> None:
             presets.start()
             cleanup.callback(presets.close)
         for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, stop_event.set)
-            cleanup.callback(loop.remove_signal_handler, sig)
+            try:
+                loop.add_signal_handler(sig, stop_event.set)
+            except NotImplementedError:
+                previous = signal.signal(
+                    sig, lambda _signum, _frame: loop.call_soon_threadsafe(stop_event.set)
+                )
+                cleanup.callback(signal.signal, sig, previous)
+            else:
+                cleanup.callback(loop.remove_signal_handler, sig)
 
         # Register cleanup before startup so partial initialization is unwound too.
         if config.api_enabled:

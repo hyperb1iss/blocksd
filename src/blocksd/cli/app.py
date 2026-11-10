@@ -6,7 +6,7 @@ import typer
 
 app = typer.Typer(
     name="blocksd",
-    help="ROLI Blocks device manager for Linux and macOS",
+    help="ROLI Blocks device manager for Linux, macOS, and Windows",
     no_args_is_help=True,
 )
 
@@ -14,7 +14,7 @@ app = typer.Typer(
 @app.callback()
 def main(
     ctx: typer.Context,
-    socket: Path | None = typer.Option(None, "--socket", help="Running daemon socket path"),  # noqa: B008
+    socket: Path | None = typer.Option(None, "--socket", help="Running daemon Unix socket path"),  # noqa: B008
 ) -> None:
     """Configure the connection used by device commands."""
     ctx.obj = socket
@@ -35,7 +35,11 @@ def run(
     cfg.verbose = cfg.verbose or verbose
     if ctx.obj is not None:
         cfg.api_socket = str(ctx.obj)
-    start(cfg)
+    try:
+        start(cfg)
+    except (ValueError, OSError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from exc
 
 
 @app.command()

@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import hashlib
 from ipaddress import ip_address
+from pathlib import PureWindowsPath
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
@@ -169,14 +170,18 @@ _NOT_BUILT_HTML = (
 
 def serve_static(path: str, static_dir: Path) -> bytes:
     """Serve a file from *static_dir* with SPA fallback to ``index.html``."""
+    # Reject Windows drives, network paths, and streams before filesystem resolution.
+    if "\\" in path or ":" in path or PureWindowsPath(path).drive:
+        return http_response(404, b"Not Found")
     if not static_dir.is_dir():
         return http_response(200, _NOT_BUILT_HTML, "text/html; charset=utf-8")
 
     clean = path.lstrip("/") or "index.html"
-    target = (static_dir / clean).resolve()
+    root = static_dir.resolve()
+    target = (root / clean).resolve()
 
     # Path traversal guard
-    if not str(target).startswith(str(static_dir.resolve())):
+    if not target.is_relative_to(root):
         return http_response(404, b"Not Found")
 
     if target.is_file():

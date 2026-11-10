@@ -164,3 +164,34 @@ def test_browser_origin_with_custom_bindings(bound_host, host, allowed):
 
     request = HttpRequest("GET", "/ws", {"host": host, "origin": f"http://{host}"})
     assert websocket_origin_allowed(request, bound_host) is allowed
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        r"\\host\share\x",
+        "//host/share/x",
+        r"C:\secret",
+        "C:/secret",
+        "/C:/secret",
+        "/index.html:stream",
+    ],
+)
+def test_windows_paths_are_rejected_before_filesystem_resolution(path, monkeypatch, tmp_path):
+    from unittest.mock import Mock
+
+    resolve = Mock(side_effect=AssertionError("request reached filesystem resolution"))
+    monkeypatch.setattr(Path, "resolve", resolve)
+    assert b"404 Not Found" in serve_static(path, tmp_path)
+    resolve.assert_not_called()
+
+
+def test_static_sibling_with_same_prefix_is_not_served(tmp_path):
+    static = tmp_path / "web"
+    sibling = tmp_path / "web-private"
+    static.mkdir()
+    sibling.mkdir()
+    (sibling / "secret.txt").write_text("private")
+    response = serve_static("/../web-private/secret.txt", static)
+    assert b"404 Not Found" in response
+    assert b"private" not in response

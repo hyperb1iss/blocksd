@@ -10,6 +10,8 @@ from pathlib import Path
 def config_paths() -> list[Path]:
     """Return configuration candidates in descending priority order."""
     user_config = Path.home() / ".config" / "blocksd" / "config.toml"
+    if sys.platform == "win32":
+        return [_windows_config_directory() / "config.toml"]
     if sys.platform == "darwin":
         return [
             Path.home() / "Library" / "Application Support" / "blocksd" / "config.toml",
@@ -30,9 +32,16 @@ def default_socket_path() -> Path:
 
 def presets_path() -> Path:
     """Return the per-user preset store, separate from daemon configuration."""
+    if sys.platform == "win32":
+        return _windows_config_directory() / "presets.json"
     if sys.platform == "darwin":
         return Path.home() / "Library" / "Application Support" / "blocksd" / "presets.json"
     if configuration_directory := os.environ.get("CONFIGURATION_DIRECTORY"):
         return Path(configuration_directory) / "presets.json"
     root = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
     return root / "blocksd" / "presets.json"
+
+
+def _windows_config_directory() -> Path:
+    root = Path(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming")))
+    return root / "blocksd"

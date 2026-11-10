@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import plistlib
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -60,6 +61,8 @@ def _generate_plist(bin_path: str) -> bytes:
 
 def install_agent(bin_path: str, *, enable: bool) -> None:
     """Write the agent and optionally replace its running registration."""
+    if sys.platform == "win32":
+        raise OSError("LaunchAgents are unavailable on Windows.")
     content = _generate_plist(bin_path)
     path = _plist_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -82,6 +85,8 @@ def install_agent(bin_path: str, *, enable: bool) -> None:
 
 def uninstall_agent() -> None:
     """Unload the service before removing its definition; keep user logs."""
+    if sys.platform == "win32":
+        raise OSError("LaunchAgents are unavailable on Windows.")
     target = f"gui/{os.getuid()}/{LABEL}"
     _unload(target)
     path = _plist_path()

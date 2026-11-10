@@ -1,6 +1,34 @@
 # Installation
 
-blocksd uses ALSA MIDI on Linux and CoreMIDI on macOS, with Python 3.13 or newer. Background startup uses a systemd user service on Linux and a per-user LaunchAgent on macOS. Windows support is not implemented.
+blocksd uses ALSA MIDI on Linux, CoreMIDI on macOS, and WinMM on Windows, with Python 3.13 or newer. Background startup uses a systemd user service on Linux and a per-user LaunchAgent on macOS. Windows runs in the foreground.
+
+## Windows
+
+Install Microsoft C++ Build Tools with the Desktop development with C++ workload and a Windows SDK. The locked python-rtmidi version builds from source on Python 3.13 and 3.14. Use a Developer PowerShell terminal so its compiler is available.
+
+From a source checkout, install the runtime and build the dashboard:
+
+```powershell
+uv sync --locked
+pnpm --dir web install --frozen-lockfile
+pnpm --dir web build
+uv run --locked blocksd run --foreground
+```
+
+Leave that terminal running. In a second terminal in the same checkout:
+
+```powershell
+uv run --locked blocksd status --probe
+uv run --locked blocksd ui
+```
+
+Press Ctrl+C in the first terminal to stop. Windows commands use the dashboard's local WebSocket endpoint at `127.0.0.1:9010`; they do not open another MIDI connection. The Unix socket API is disabled by default on Windows. The `--socket` option and `api_socket` setting are not supported there. Keep `web_enabled = true` for device commands.
+
+Configuration and presets live in `%APPDATA%\blocksd`. To change the web port, set `web_port` in `%APPDATA%\blocksd\config.toml` so both the daemon and commands use the same endpoint. An existing configuration copied from Linux or macOS must set `api_enabled = false` and remove `api_socket`.
+
+Discovery recognizes LUMI and ROLI Piano M names and pairs WinMM's independently numbered input/output ports. Close ROLI Dashboard and other applications that own those MIDI ports before starting blocksd. Background service installation is not implemented on Windows; `blocksd install` remains a Linux/macOS command.
+
+Windows startup, transport, and discovery have automated checks. Physical Piano M renderer execution, unplug/replug, and DAW coexistence still need device testing. An acknowledged program upload does not establish that the renderer is running or that its LEDs changed.
 
 ## macOS
 
