@@ -125,8 +125,8 @@ When running, you'll see devices connect:
 INFO  blocksd ready, scanning for ROLI devices
 INFO  Master serial: LKBC9PZSOH978HOE
 INFO  Topology: 2 devices, 1 connections
-INFO  ✨ Device connected: lumi_keys_block (LKBC9PZSOH978HOE), battery 31%
-INFO  ✨ Device connected: lightpad_block_m (LPMJW6SWHSPD8H92), battery 31%
+INFO  ✨ Device connected: lumi_keys_block (LKBC9PZSOH978HOE), battery 100%
+INFO  ✨ Device connected: lightpad_block_m (LPMJW6SWHSPD8H92), battery 100%
 ```
 
 ### Device Status

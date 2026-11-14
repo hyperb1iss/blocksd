@@ -140,7 +140,7 @@ List all connected devices with capabilities and battery status.
       "grid_width": 15,
       "grid_height": 15,
       "key_count": 0,
-      "battery_level": 31,
+      "battery_level": 100,
       "battery_charging": false,
       "firmware_version": null
     }
@@ -148,6 +148,8 @@ List all connected devices with capabilities and battery status.
   "id": "req-2"
 }
 ```
+
+`battery_level` is a percentage from 0 to 100, scaled from the device's 5-bit level. `firmware_version` is `null` when the device has not reported a readable version string.
 
 The `uid` is a deterministic 64-bit identifier derived from the device serial. Clients can cache it across daemon restarts.
 

@@ -45,7 +45,7 @@ from blocksd.protocol.builder import (
     build_program_event,
     build_request_topology,
 )
-from blocksd.protocol.constants import SERIAL_DUMP_REQUEST
+from blocksd.protocol.constants import SERIAL_DUMP_REQUEST, BitSize
 from blocksd.protocol.decoder import decode_packet
 from blocksd.protocol.remote_heap import RemoteHeap
 from blocksd.protocol.serial import is_serial_response, parse_serial_response
@@ -568,7 +568,9 @@ class DeviceGroup:
         self, topology_index: int, serial: str, battery_level: int, battery_charging: bool
     ) -> None:
         self._incoming_devices.append(
-            _IncomingDevice(topology_index, serial, battery_level, battery_charging)
+            _IncomingDevice(
+                topology_index, serial, _battery_percent(battery_level), battery_charging
+            )
         )
 
     def on_topology_connection(self, dev1_idx: int, port1: int, dev2_idx: int, port2: int) -> None:
@@ -611,8 +613,14 @@ class DeviceGroup:
 
     def on_device_version(self, topology_index: int, version: str) -> None:
         uid = self._uid_from_index(topology_index)
+        version = version.partition("\x00")[0]
+        if not version.isprintable():
+            log.debug(
+                "Ignoring non-text firmware version from index %d: %r", topology_index, version
+            )
+            return
         if dev := self._devices.get(uid):
-            dev.version = version.partition("\x00")[0]
+            dev.version = version
 
     def on_device_name(self, topology_index: int, name: str) -> None:
         uid = self._uid_from_index(topology_index)
@@ -767,6 +775,14 @@ class DeviceGroup:
                     is_master=(uid == self.master_uid),
                     master_uid=self.master_uid,
                 )
+
+
+_BATTERY_LEVEL_MAX = (1 << BitSize.BATTERY_LEVEL) - 1
+
+
+def _battery_percent(level: int) -> int:
+    """Scale the 5-bit topology battery level to a percentage, as the SDK does."""
+    return round(level * 100 / _BATTERY_LEVEL_MAX)
 
 
 # ── Private data containers ───────────────────────────────────────────────────
