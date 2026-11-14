@@ -2,9 +2,9 @@
 
 ROLI Blocks are remarkable hardware: pressure-sensitive touch surfaces, 15x15 RGB LED grids, and magnetic DNA mesh networking that lets devices snap together into larger surfaces. They were designed for music production, but the underlying capabilities go far beyond that.
 
-The catch: ROLI only ships drivers for Windows and macOS. Plug a Block into a Linux machine and you get a sad searching animation for about 5 seconds before the device powers off. No API mode activation, no touch events, no LED control, nothing.
+The catch: ROLI never supported Linux. Plug a Block into a Linux machine and you get a sad searching animation for about 5 seconds before the device powers off. No API mode activation, no touch events, no LED control, nothing. ROLI entered administration in October 2026, so an independent host matters on macOS and Windows too.
 
-**blocksd** fixes this. It implements the ROLI Blocks host protocol as a Linux daemon, reverse-engineered from JUCE SDK source code and extracted ROLI Connect installers.
+**blocksd** fixes this. It implements the ROLI Blocks host protocol as a daemon, reverse-engineered from JUCE SDK source code and extracted ROLI Connect installers. Linux and macOS are supported; Windows runs as a foreground preview.
 
 ## What blocksd Does
 
