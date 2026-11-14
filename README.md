@@ -30,22 +30,22 @@
 
 ---
 
-ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter "API mode." Without it, they show a searching animation and eventually power off. There's no official Linux support.
+ROLI Blocks devices need an active host-side handshake over MIDI SysEx to enter "API mode." Without it, they show a searching animation and eventually power off. ROLI never supported Linux, and the company entered administration in October 2026.
 
-**blocksd** implements the ROLI Blocks host protocol: device discovery, topology management, API mode keepalive, LED control, touch events, and device configuration. The shared runtime uses ALSA on Linux and CoreMIDI on macOS.
+**blocksd** implements the ROLI Blocks host protocol without ROLI's apps: device discovery, topology management, API mode keepalive, LED control, touch events, and device configuration. The shared runtime uses ALSA on Linux, CoreMIDI on macOS, and WinMM on Windows.
 
 ## ✦ Features
 
-| Capability                   | Description                                                                 |
-| ---------------------------- | --------------------------------------------------------------------------- |
-| 🔌 **API Mode Keepalive**    | Periodic pings prevent the 5-second device timeout that kills API mode      |
-| 🏗️ **Topology Management**   | Auto-discovers devices over USB, tracks DNA-connected blocks through master |
-| 🎭 **Full State Machine**    | Serial → topology → API activation → ping loop, matching the C++ reference  |
-| 💡 **LED Control**           | Lightpad RGB565 grids and LUMI per-key colors, with CLI patterns            |
-| 👆 **Touch & Button Events** | Normalized touch data (x/y/z/velocity) and button callbacks                 |
-| ⚙️ **Device Config**         | Read/write device settings (sensitivity, MIDI channel, scale, etc.)         |
-| 🔊 **DAW Friendly**          | ALSA multi-client, blocksd and your DAW share MIDI without conflict         |
-| 🛡️ **systemd Integration**   | Type=notify service, watchdog heartbeat, udev rules for plug-and-play       |
+| Capability                   | Description                                                                      |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| 🔌 **API Mode Keepalive**    | Periodic pings prevent the 5-second device timeout that kills API mode           |
+| 🏗️ **Topology Management**   | Auto-discovers devices over USB, tracks DNA-connected blocks through master      |
+| 🎭 **Full State Machine**    | Serial → topology → API activation → ping loop, matching the C++ reference       |
+| 💡 **LED Control**           | Lightpad RGB565 grids and LUMI per-key colors, with CLI patterns                 |
+| 👆 **Touch & Button Events** | Normalized touch data (x/y/z/velocity) and button callbacks                      |
+| ⚙️ **Device Config**         | Read/write device settings (sensitivity, MIDI channel, scale, etc.)              |
+| 🔊 **DAW Friendly**          | ALSA and CoreMIDI are multi-client, so blocksd and your DAW share MIDI           |
+| 🛡️ **Background Service**    | systemd user service with watchdog and udev rules on Linux; LaunchAgent on macOS |
 
 ## 📦 Install
 
@@ -66,6 +66,10 @@ After stopping the foreground process, run `uv run --locked blocksd install` to 
 
 The macOS runtime and installer have automated coverage. USB LUMI Keys and a DNA-connected Lightpad Block M have been confirmed entering API mode. Sleep/wake and DAW coexistence still need hardware validation. See the [macOS installation guide](https://hyperb1iss.github.io/blocksd/guide/installation#macos) for service commands, Homebrew packaging status, and the hardware checklist.
 
+### Windows (preview)
+
+Windows runs from a source checkout in the foreground, and building python-rtmidi needs Microsoft C++ Build Tools. Commands reach the daemon over its local WebSocket endpoint, and there is no background service yet. Discovery covers LUMI Keys and ROLI Piano M; renderer startup and LED output have not been confirmed on Windows hardware. Follow the [Windows installation guide](https://hyperb1iss.github.io/blocksd/guide/installation#windows).
+
 ### Quick Install
 
 ```bash
@@ -79,7 +83,7 @@ Starting with v0.6.0, the installer supports Linux and macOS. It installs or upg
 
 ```bash
 uv tool install --python 3.13 blocksd
-blocksd install    # sets up systemd service + udev rules
+blocksd install    # Linux: systemd service + udev rules; macOS: LaunchAgent
 ```
 
 ### Arch Linux
@@ -125,8 +129,8 @@ When running, you'll see devices connect:
 INFO  blocksd ready, scanning for ROLI devices
 INFO  Master serial: LKBC9PZSOH978HOE
 INFO  Topology: 2 devices, 1 connections
-INFO  ✨ Device connected: lumi_keys_block (LKBC9PZSOH978HOE), battery 31%
-INFO  ✨ Device connected: lightpad_block_m (LPMJW6SWHSPD8H92), battery 31%
+INFO  ✨ Device connected: lumi_keys_block (LKBC9PZSOH978HOE), battery 100%
+INFO  ✨ Device connected: lightpad_block_m (LPMJW6SWHSPD8H92), battery 100%
 ```
 
 ### Device Status
@@ -182,13 +186,13 @@ blocksd ui                             # open the running dashboard
 blocksd ui --no-browser                # print its URL
 ```
 
-The dashboard provides device settings, live touch feedback, and saved presets. Changes stay pending until the device confirms them. Presets can be exported, imported, and selected for reconnect restoration. The DAW handles sound generation.
+The dashboard provides device settings, live Lightpad touch feedback, LittleFoot program loading, and saved presets. Changes stay pending until the device confirms them. Presets can be exported, imported, and selected for reconnect restoration. The DAW handles sound generation.
 
 ### Service Management
 
 ```bash
-blocksd install                        # install systemd service + udev rules
-blocksd install --no-udev              # skip udev rules
+blocksd install                        # Linux: systemd service + udev rules; macOS: LaunchAgent
+blocksd install --no-udev              # skip udev rules (Linux)
 blocksd install --no-enable            # write/reload without starting or restarting
 blocksd uninstall                      # remove service and udev rules
 ```

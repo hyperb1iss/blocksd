@@ -19,11 +19,11 @@ The `deviceTopology` message (type `0x01`) contains:
 
 Each device in the topology is described by:
 
-| Field            | Bits          | Description                              |
-| ---------------- | ------------- | ---------------------------------------- |
-| Serial number    | 16 x 7b chars | 16-character device serial               |
-| Battery level    | 5             | 0-31 battery percentage (maps to 0-100%) |
-| Battery charging | 1             | Whether the device is currently charging |
+| Field            | Bits          | Description                                                  |
+| ---------------- | ------------- | ------------------------------------------------------------ |
+| Serial number    | 16 x 7b chars | 16-character device serial                                   |
+| Battery level    | 5             | 0-31 level; blocksd reports level × 100 / 31 as a percentage |
+| Battery charging | 1             | Whether the device is currently charging                     |
 
 The serial number's first 3 characters identify the device type (see [SysEx Framing](./sysex-framing#serial-number-request)).
 

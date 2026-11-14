@@ -164,7 +164,7 @@ def http_response(
 _NOT_BUILT_HTML = (
     b"<html><body style='background:#1a1a2e;color:#e0e0e0;font-family:monospace;padding:2em'>"
     b"<h1>blocksd</h1><p>Web UI not built yet.</p>"
-    b"<pre>cd web &amp;&amp; bun install &amp;&amp; bun run build</pre></body></html>"
+    b"<pre>pnpm --dir web install &amp;&amp; pnpm --dir web build</pre></body></html>"
 )
 
 

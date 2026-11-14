@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: blocksd
-  text: ROLI Blocks on Linux
-  tagline: "ROLI Blocks host protocol, implemented from reference code. Topology discovery, keepalive, LED bitmap streaming, pressure-sensitive touch, device configuration. Your Blocks, finally alive on Linux."
+  text: ROLI Blocks without ROLI's apps
+  tagline: "ROLI Blocks host protocol, implemented from reference code. Topology discovery, keepalive, LED streaming, pressure-sensitive touch, device configuration. Linux and macOS, with a Windows preview."
   actions:
     - theme: brand
       text: Get Started
@@ -22,7 +22,7 @@ features:
     details: Auto-discovers devices over USB, tracks DNA-connected blocks through master. Full mesh networking awareness.
   - icon: 💡
     title: LED Control
-    details: 15x15 RGB bitmap grid on Lightpad Block / M. CLI patterns, binary frame streaming, and a real-time web dashboard.
+    details: 15x15 RGB grid on Lightpad Block / M and per-key colors on LUMI Keys. CLI patterns and binary frame streaming.
   - icon: 👆
     title: Touch & Button Events
     details: Normalized pressure-sensitive touch data (x, y, z, velocity) and button callbacks over Unix socket and WebSocket.
@@ -30,8 +30,8 @@ features:
     title: Device Configuration
     details: Read and write device settings like velocity sensitivity, MIDI channel, scale mode, and more via CLI or API.
   - icon: 🛡️
-    title: systemd Integration
-    details: "Type=notify service with watchdog heartbeat, udev rules for plug-and-play. Install with one command."
+    title: Background Service
+    details: "A systemd user service with watchdog heartbeat and udev rules on Linux, or a LaunchAgent on macOS. Install with one command."
 ---
 
 <style>

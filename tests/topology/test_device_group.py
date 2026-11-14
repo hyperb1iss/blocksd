@@ -78,6 +78,7 @@ def _build_topology_packet(
     serials: list[str],
     connections: list[tuple[int, int, int, int]] | None = None,
     packet_timestamp: int = 1000,
+    battery_level: int = 20,
 ) -> bytes:
     """Build a fake device→host topology packet."""
     w = Packed7BitWriter(1024)
@@ -94,7 +95,7 @@ def _build_topology_packet(
         for ch in padded:
             w.write_bits(ord(ch), BitSize.SERIAL_CHAR)
         w.write_bits(idx, BitSize.TOPOLOGY_INDEX)
-        w.write_bits(20, BitSize.BATTERY_LEVEL)
+        w.write_bits(battery_level, BitSize.BATTERY_LEVEL)
         w.write_bits(0, BitSize.BATTERY_CHARGING)
 
     for d1, p1, d2, p2 in connections or []:
@@ -227,6 +228,35 @@ class TestTopologyHandling:
         assert group.master_serial == "LPB0000000000000"
         dev = next(iter(group._devices.values()))
         assert dev.is_master
+
+    def test_battery_level_is_a_percentage(self) -> None:
+        conn = MockMidiConnection()
+        group = DeviceGroup(conn)
+        group.state = GroupState.REQUESTING_TOPOLOGY
+
+        group._process_message(_build_topology_packet(["LPB0000000000000"], battery_level=31))
+        dev = next(iter(group._devices.values()))
+        assert dev.battery_level == 100
+
+        group._process_message(_build_topology_packet(["LPB0000000000000"], battery_level=20))
+        assert dev.battery_level == 65
+
+        group._process_message(_build_topology_packet(["LPB0000000000000"], battery_level=0))
+        assert dev.battery_level == 0
+
+    def test_firmware_version_keeps_text_and_ignores_binary(self) -> None:
+        conn = MockMidiConnection()
+        group = DeviceGroup(conn)
+        group.state = GroupState.REQUESTING_TOPOLOGY
+        group._process_message(_build_topology_packet(["LKB0000000000000"]))
+        dev = next(iter(group._devices.values()))
+
+        group.on_device_version(0, "1.3.9\x00\x00")
+        assert dev.version == "1.3.9"
+
+        # Observed from a Lightpad Block M over the version message.
+        group.on_device_version(0, "\x02\x02\t \x14\x05\x042")
+        assert dev.version == "1.3.9"
 
 
 class TestACKHandling:

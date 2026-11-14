@@ -6,7 +6,7 @@
 
 ## What We're Building
 
-**blocksd** is a Linux daemon that brings full ROLI Blocks support to Linux. ROLI's official software is Windows/macOS only. On Linux, these devices show a searching animation and eventually power off since there's no host-side driver to activate API mode.
+**blocksd** is a daemon that brings full ROLI Blocks support to Linux, and now to macOS and Windows as well. ROLI's official software never ran on Linux, where these devices show a searching animation and eventually power off since there's no host-side driver to activate API mode. ROLI entered administration in October 2026, so its site and apps are no longer a dependable path for owners on any platform.
 
 We're building the full protocol stack: device discovery, topology management, API mode keepalive, LED control, touch/pressure input, and LittleFoot LED renderer upload. The goal is complete parity with the original ROLI drivers, plus capabilities they never shipped.
 
@@ -186,9 +186,9 @@ The HTTP dashboard, WebSocket device API, and device-side LED renderers exist to
 
 ## 💜 Why This Matters
 
-ROLI still actively ships and supports Blocks on Windows and macOS, but Linux gets nothing. The protocol is undocumented and everything in blocksd was reverse-engineered from extracted ROLI Connect installers and JUCE SDK source.
+ROLI never supported Linux, and since it entered administration in October 2026, Windows and macOS owners can no longer count on its apps either. The protocol is undocumented and everything in blocksd was reverse-engineered from extracted ROLI Connect installers and JUCE SDK source.
 
-blocksd brings full Blocks support to Linux. With a clean protocol implementation and a daemon that handles the lifecycle, these devices become a platform for whatever you can imagine, on the OS of your choice.
+blocksd keeps Blocks working independently of ROLI. With a clean protocol implementation and a daemon that handles the lifecycle, these devices become a platform for whatever you can imagine, on the OS of your choice.
 
 The 15×15 LED grid on a Lightpad is small. But it's physical, tactile, and sitting right there on your desk. Sometimes the most useful display isn't the one with the most pixels: it's the one you can reach out and touch.
 
