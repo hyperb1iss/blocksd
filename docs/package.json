@@ -13,7 +13,7 @@
   },
   "devDependencies": {
     "mermaid": "^12.3.0",
-    "prettier": "^3.9.10",
+    "prettier": "^3.10.1",
     "vitepress": "2.0.0-alpha.21"
   },
   "packageManager": "pnpm@12.3.4",
