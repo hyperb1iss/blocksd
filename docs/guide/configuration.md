@@ -42,6 +42,7 @@ api_socket = ""                # empty = $XDG_RUNTIME_DIR/blocksd/blocksd.sock
 web_enabled = true             # start HTTP + WebSocket server
 web_host = "127.0.0.1"        # bind address
 web_port = 9010                # HTTP / WebSocket port
+web_allowed_origins = []       # trusted app origins
 ```
 
 ## Settings Reference
@@ -65,6 +66,11 @@ The schema accepts `scan_interval`, `ping_interval_master`, `ping_interval_dna`,
 **`web_enabled`** starts the HTTP and WebSocket servers alongside the daemon. Defaults to `true`, so `blocksd run` serves the web UI unless disabled. Use `blocksd ui` to open the running dashboard, or `blocksd ui --no-browser` to print its URL.
 
 **`web_host`** and **`web_port`** control the server binding. The default `127.0.0.1:9010` only accepts local connections.
+
+**`web_allowed_origins`** lets trusted desktop apps connect from a different origin.
+For example, set `web_allowed_origins = ["keylight://app"]` for Keylight.
+Only add origins you trust to control your devices. This setting applies only
+when `web_host` is `127.0.0.1` and the request targets that address and the configured port.
 
 ::: warning
 Setting `web_host` to `0.0.0.0` exposes your device controls to the entire network. There is no authentication layer.

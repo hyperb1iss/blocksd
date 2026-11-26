@@ -306,10 +306,12 @@ class WebServer(_ApiTransport):
         *,
         presets: PresetService | None = None,
         web_url: str | None = None,
+        allowed_origins: tuple[str, ...] = (),
     ) -> None:
         super().__init__(manager, presets=presets, web_url=web_url)
         self._host = host
         self._port = port
+        self._allowed_origins = allowed_origins
         self._static_dir = static_dir or resolve_static_dir()
         self._start_time = time.monotonic()
 
@@ -346,7 +348,9 @@ class WebServer(_ApiTransport):
                 return
 
             if request.is_websocket_upgrade and request.path == "/ws":
-                if not websocket_origin_allowed(request, self._host):
+                if not websocket_origin_allowed(
+                    request, self._host, self._port, self._allowed_origins
+                ):
                     writer.write(
                         http_response(403, b"Open the dashboard on this server to control devices.")
                     )

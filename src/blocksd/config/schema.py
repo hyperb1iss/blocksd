@@ -24,3 +24,4 @@ class DaemonConfig(BaseModel):
     web_enabled: bool = True
     web_host: str = "127.0.0.1"
     web_port: int = 9010
+    web_allowed_origins: list[str] = Field(default_factory=list)

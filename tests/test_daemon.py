@@ -56,11 +56,14 @@ async def test_transports_share_preset_owner_and_cleanup_callbacks(runtime, monk
     monkeypatch.setattr(daemon, "ApiServer", api_factory)
     monkeypatch.setattr(daemon, "WebServer", web_factory)
     with pytest.raises(RuntimeError, match="stopped unexpectedly"):
-        await daemon.run_daemon(DaemonConfig(web_port=9018))
+        await daemon.run_daemon(
+            DaemonConfig(web_port=9018, web_allowed_origins=["example-app://app"])
+        )
     unix_options = api_factory.call_args.kwargs
     web_options = web_factory.call_args.kwargs
     assert unix_options["presets"] is web_options["presets"]
     assert unix_options["web_url"] == "http://127.0.0.1:9018"
+    assert web_options["allowed_origins"] == ("example-app://app",)
     assert not manager.on_config_changed
     assert len(manager.on_device_removed) == 1  # Only the daemon logging callback remains.
 

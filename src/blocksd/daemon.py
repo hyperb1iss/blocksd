@@ -62,6 +62,7 @@ async def run_daemon(config: DaemonConfig) -> None:
         manager,
         host=config.web_host,
         port=config.web_port,
+        allowed_origins=tuple(config.web_allowed_origins),
         presets=presets,
         web_url=web_url,
     )

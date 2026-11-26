@@ -146,6 +146,25 @@ def test_browser_origin(origin, host, allowed):
 
 
 @pytest.mark.parametrize(
+    ("origin", "host", "bound_host", "port", "allowed"),
+    [
+        ("example-app://app", "127.0.0.1:9010", "127.0.0.1", 9010, True),
+        ("example-app://app", "127.0.0.1:9011", "127.0.0.1", 9011, True),
+        ("example-app://app", "127.0.0.1:9011", "127.0.0.1", 9010, False),
+        ("example-app://app", "evil.example:9010", "127.0.0.1", 9010, False),
+        ("example-app://other", "127.0.0.1:9010", "127.0.0.1", 9010, False),
+        ("example-app://app", "127.0.0.1:9010", "0.0.0.0", 9010, False),  # noqa: S104
+    ],
+)
+def test_explicit_app_origin(origin, host, bound_host, port, allowed):
+    from blocksd.api.http import websocket_origin_allowed
+
+    request = HttpRequest("GET", "/ws", {"host": host, "origin": origin})
+    assert websocket_origin_allowed(request, bound_host, port, ("example-app://app",)) is allowed
+    assert not websocket_origin_allowed(request, bound_host, port)
+
+
+@pytest.mark.parametrize(
     ("bound_host", "host", "allowed"),
     [
         ("127.0.1.1", "rebound.example:9010", False),
