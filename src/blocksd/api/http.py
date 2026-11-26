@@ -99,13 +99,22 @@ def ws_upgrade_response(key: str) -> bytes:
     ).encode()
 
 
-def websocket_origin_allowed(request: HttpRequest, bound_host: str) -> bool:
+def websocket_origin_allowed(
+    request: HttpRequest, bound_host: str, port: int = 9010, allowed_origins: tuple[str, ...] = ()
+) -> bool:
     """Keep browser device writes on the dashboard's own origin.
 
     Native clients need not send Origin. Browser hosts must be IP literals,
     localhost, or the configured hostname to prevent DNS rebinding.
     """
     origin = request.headers.get("origin")
+    if (
+        origin is not None
+        and origin in allowed_origins
+        and bound_host == "127.0.0.1"
+        and request.headers.get("host") == f"127.0.0.1:{port}"
+    ):
+        return True
     if origin is None:
         return True
     try:
